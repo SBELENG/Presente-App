@@ -94,11 +94,11 @@ export default function AlumnosPage({ params }) {
       const keys = Object.keys(row)
       const findKey = (candidates) => keys.find(k => candidates.includes(k.toLowerCase()))
       
-      const colAlumno = findKey(['alumno', 'estudiante', 'nombre completo'])
-      const colApellido = findKey(['apellido', 'apellidos'])
-      const colNombre = findKey(['nombre', 'nombres'])
-      const colDni = findKey(['dni', 'documento', 'doc'])
-      const colEmail = findKey(['email', 'e-mail', 'correo'])
+      const colAlumno = findKey(['alumno', 'estudiante', 'nombre completo', 'nombre y apellido', 'nombre_apellido', 'full name', 'fullname'])
+      const colApellido = findKey(['apellido', 'apellidos', 'lastname', 'surname'])
+      const colNombre = findKey(['nombre', 'nombres', 'firstname', 'name'])
+      const colDni = findKey(['dni', 'documento', 'doc', 'id', 'cédula', 'nro documento', 'identificación'])
+      const colEmail = findKey(['email', 'e-mail', 'correo', 'mail', 'correo electrónico'])
 
       let apellido = row[colApellido] || ''
       let nombre = row[colNombre] || ''
@@ -106,12 +106,18 @@ export default function AlumnosPage({ params }) {
       // Si el nombre viene todo junto en la columna "Alumno"
       if (colAlumno && (!apellido || !nombre)) {
         const full = String(row[colAlumno]).trim()
-        const parts = full.split(' ')
-        if (parts.length >= 2) {
-          apellido = parts[0] // Tomamos el primero como apellido
-          nombre = parts.slice(1).join(' ') // El resto como nombre
+        if (full.includes(',')) {
+          const [ape, nom] = full.split(',').map(s => s.trim())
+          apellido = ape
+          nombre = nom
         } else {
-          apellido = full
+          const parts = full.split(' ')
+          if (parts.length >= 2) {
+            apellido = parts[0] // Tomamos el primero como apellido
+            nombre = parts.slice(1).join(' ') // El resto como nombre
+          } else {
+            apellido = full
+          }
         }
       }
 
@@ -139,7 +145,7 @@ export default function AlumnosPage({ params }) {
       .upsert(normalizedData, { onConflict: 'catedra_id, dni_estudiante' })
 
     if (error) {
-      setMessage({ type: 'error', text: 'Error al importar en la base de datos.' })
+      setMessage({ type: 'error', text: `Error: ${error.message || 'Error al importar en la base de datos.'}` })
     } else {
       // THE MAGIC: Automatic resolution of pending attendance
       await resolvePendingAttendances(normalizedData.map(d => d.dni_estudiante))
@@ -246,7 +252,7 @@ export default function AlumnosPage({ params }) {
               <tr className="bg-surface-hover text-muted text-xs uppercase tracking-widest">
                 <th className="px-6 py-4 font-bold">Alumno</th>
                 <th className="px-6 py-4 font-bold">DNI</th>
-                <th className="px-6 py-4 font-bold">Estado</th>
+                <th className="px-6 py-4 font-bold">E-mail</th>
                 <th className="px-6 py-4 font-bold text-right">Acciones</th>
               </tr>
             </thead>
@@ -276,13 +282,8 @@ export default function AlumnosPage({ params }) {
                     <td className="px-6 py-4 text-sm font-mono text-foreground font-medium">
                       {a.dni_estudiante}
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
-                        a.estado === 'inscripto' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'
-                      }`}>
-                        <div className={`w-1.5 h-1.5 rounded-full ${a.estado === 'inscripto' ? 'bg-success' : 'bg-warning'}`} />
-                        {a.estado === 'inscripto' ? 'Inscripto' : 'Pendiente'}
-                      </span>
+                    <td className="px-6 py-4 text-sm text-muted">
+                      {a.email_estudiante || '-'}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">

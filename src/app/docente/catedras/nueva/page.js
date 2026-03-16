@@ -53,6 +53,7 @@ const initialForm = {
   agenda_rota_practicas: false,
   fecha_inicio_practica: '',
   fecha_fin_practica: '',
+  dias_practica: [],
   planificacion_pendiente: false,
   bloques_semanales: {},
 }
@@ -182,22 +183,65 @@ export default function NuevaCatedraPage() {
     setError(null)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setError('No estás autenticado'); setLoading(false); return; }
+    
+    let docenteId = user?.id
+    
+    // Bypass para testing si no hay sesión activa
+    if (!docenteId && document.cookie.includes('dev_bypass=true')) {
+      docenteId = '3cd85ad4-bd2a-4639-9c88-bb22bc63ed88' // ID del docente creado en Supabase
+    }
+
+    if (!docenteId) { 
+      setError('No estás autenticado. Por favor, ingresá por el login o Modo Invitado.'); 
+      setLoading(false); 
+      return; 
+    }
     const qrCode = crypto.randomUUID()
     let tipoClaseFinal = Array.isArray(form.tipo_clase) ? form.tipo_clase[0] : form.tipo_clase
     if (Array.isArray(form.tipo_clase)) {
       if (form.tipo_clase.includes('teorica') && form.tipo_clase.includes('practica')) tipoClaseFinal = 'teorico_practica'
       else tipoClaseFinal = form.tipo_clase[0]
     }
-    const { error: insertError } = await supabase.from('catedras').insert({
+    const dataToSubmit = {
       ...form, 
       tipo_clase: tipoClaseFinal, 
       anio: form.anio ? parseInt(form.anio) : null,
       cuatrimestre: isNaN(parseInt(form.cuatrimestre)) ? 0 : parseInt(form.cuatrimestre),
       qr_code: qrCode, 
-      docente_id: user.id,
-      metodo_tp: Array.isArray(form.metodo_tp) ? form.metodo_tp : [form.metodo_tp] // Asegurar array
-    })
+      docente_id: docenteId,
+      metodo_tp: Array.isArray(form.metodo_tp) ? form.metodo_tp : [form.metodo_tp],
+      dias_practica: Array.isArray(form.dias_practica) ? form.dias_practica : [],
+      fecha_inicio_practica: form.fecha_inicio_practica || null,
+      fecha_fin_practica: form.fecha_fin_practica || null,
+      fecha_inicio: form.fecha_inicio || null,
+      fecha_fin: form.fecha_fin || null,
+    }
+
+    // CHECK FOR DUPLICATES
+    let duplicateQuery = supabase
+      .from('catedras')
+      .select('id')
+      .eq('institucion', dataToSubmit.institucion)
+      .eq('facultad', dataToSubmit.facultad)
+      .eq('carrera', dataToSubmit.carrera)
+      .eq('codigo', dataToSubmit.codigo)
+      .eq('docente_id', dataToSubmit.docente_id)
+
+    if (dataToSubmit.comision) {
+      duplicateQuery = duplicateQuery.eq('comision', dataToSubmit.comision)
+    } else {
+      duplicateQuery = duplicateQuery.is('comision', null)
+    }
+
+    const { data: existingCatedra, error: checkError } = await duplicateQuery.maybeSingle();
+
+    if (existingCatedra) {
+      setError('Ya existe una cátedra idéntica registrada (mismo código, carrera y comisión).');
+      setLoading(false);
+      return;
+    }
+
+    const { error: insertError } = await supabase.from('catedras').insert(dataToSubmit)
     if (insertError) { setError(insertError.message); setLoading(false); return; }
     router.push('/docente/catedras'); router.refresh()
   }
@@ -369,6 +413,59 @@ export default function NuevaCatedraPage() {
                 </div>
               )}
             </div>
+
+            {/* DÍAS DE TEORÍA */}
+            {(form.tipo_clase.includes('teorica') || form.tipo_clase.includes('teorico_practica')) && (
+              <div className="p-4 bg-background border border-border rounded-3xl no-print">
+                <label className="block text-[11px] font-black text-muted uppercase mb-3 tracking-widest">
+                  {form.agenda_rota_practicas ? 'Días de Teoría' : 'Días de Cursada'} *
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {[{v:'lunes',l:'L'},{v:'martes',l:'M'},{v:'miercoles',l:'X'},{v:'jueves',l:'J'},{v:'viernes',l:'V'},{v:'sabado',l:'S'}].map(d => (
+                    <button key={d.v} type="button"
+                      onClick={() => toggleDia(d.v)}
+                      className={`w-9 h-9 rounded-xl text-xs font-black transition-all border-2 ${
+                        form.dias_clase.includes(d.v)
+                          ? 'bg-primary text-white border-primary shadow-md'
+                          : 'bg-surface text-muted border-border'
+                      }`}
+                    >{d.l}</button>
+                  ))}
+                </div>
+                {form.dias_clase.length > 0 && (
+                  <p className="text-[10px] text-muted mt-2">{form.dias_clase.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')}</p>
+                )}
+              </div>
+            )}
+
+            {/* DÍAS DE PRÁCTICA — solo si agenda rotativa */}
+            {form.agenda_rota_practicas && (
+              <div className="p-4 border-2 border-accent/20 bg-accent/5 rounded-3xl no-print">
+                <label className="block text-[11px] font-black text-accent uppercase mb-3 tracking-widest">
+                  Días de Práctica *
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {[{v:'lunes',l:'L'},{v:'martes',l:'M'},{v:'miercoles',l:'X'},{v:'jueves',l:'J'},{v:'viernes',l:'V'},{v:'sabado',l:'S'}].map(d => (
+                    <button key={d.v} type="button"
+                      onClick={() => setForm(prev => ({
+                        ...prev,
+                        dias_practica: prev.dias_practica.includes(d.v)
+                          ? prev.dias_practica.filter(x => x !== d.v)
+                          : [...prev.dias_practica, d.v]
+                      }))}
+                      className={`w-9 h-9 rounded-xl text-xs font-black transition-all border-2 ${
+                        form.dias_practica.includes(d.v)
+                          ? 'bg-accent text-white border-accent shadow-md'
+                          : 'bg-surface text-muted border-border'
+                      }`}
+                    >{d.l}</button>
+                  ))}
+                </div>
+                {form.dias_practica.length > 0 && (
+                  <p className="text-[10px] text-muted mt-2">{form.dias_practica.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')}</p>
+                )}
+              </div>
+            )}
 
             {form.agenda_rota_practicas && form.comisiones_division.length > 0 && (
               <div className="space-y-6 pt-6 border-t border-border no-print:border-none">

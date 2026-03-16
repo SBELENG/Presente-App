@@ -7,7 +7,8 @@ import {
   Settings, 
   ChevronRight, 
   ArrowLeft,
-  GraduationCap
+  GraduationCap,
+  BarChart3
 } from 'lucide-react'
 import { notFound } from 'next/navigation'
 
@@ -57,6 +58,14 @@ export default async function CatedraDetailPage({ params }) {
       href: `/docente/catedras/${id}/notas`,
       color: 'bg-warning/10 text-warning',
       hover: 'hover:border-warning/30'
+    },
+    {
+      title: 'Registro de Asistencia',
+      desc: 'Matriz histórica de firmas y faltas (Vista Excel)',
+      icon: Users,
+      href: `/docente/catedras/${id}/asistencia`,
+      color: 'bg-info/10 text-info',
+      hover: 'hover:border-info/30'
     },
     {
       title: 'Analítica',
@@ -139,7 +148,7 @@ export default async function CatedraDetailPage({ params }) {
           <div>
             <div className="text-xs font-bold text-muted uppercase tracking-widest mb-1">Promocion</div>
             <div className="text-foreground font-medium">
-              {catedra.es_promocional ? `Sí (Nota ${catedra.nota_promocion})` : 'No'}
+              {catedra.es_promocional ? `Sí (Nota ${catedra.nota_promocion_minima || 6}+)` : 'No'}
             </div>
           </div>
           <div>

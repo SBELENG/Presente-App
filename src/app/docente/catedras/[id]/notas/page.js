@@ -202,8 +202,8 @@ export default function NotasPage({ params }) {
                     <GraduationCap className="w-4 h-4" />
                     Parciales
                   </h3>
-                  {[...Array(catedra.cant_parciales)].map((_, i) => {
-                    const tipo = i === 0 ? TIPO_NOTA.PARCIAL_1 : TIPO_NOTA.PARCIAL_2
+                  {[...Array(catedra.cant_parciales || 2)].map((_, i) => {
+                    const tipo = `parcial_${i + 1}`
                     const nota = notasAlumno.find(n => n.tipo === tipo)?.valor || ''
                     return (
                       <div key={tipo}>
@@ -231,40 +231,46 @@ export default function NotasPage({ params }) {
                     <Save className="w-4 h-4" />
                     Complementarias
                   </h3>
-                  {catedra.cant_recuperatorios > 0 && (
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-2">
-                        Recuperatorio
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="10"
-                        step="0.01"
-                        value={notasAlumno.find(n => n.tipo === TIPO_NOTA.RECUPERATORIO)?.valor || ''}
-                        onChange={(e) => handleUpdateNota(TIPO_NOTA.RECUPERATORIO, e.target.value)}
-                        placeholder="Nota (0-10)"
-                        className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary transition-all text-lg font-mono"
-                      />
-                    </div>
-                  )}
-                  {catedra.tiene_tp_evaluable && (
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-2">
-                        Trabajo Práctico (TP)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="10"
-                        step="0.01"
-                        value={notasAlumno.find(n => n.tipo === TIPO_NOTA.TP)?.valor || ''}
-                        onChange={(e) => handleUpdateNota(TIPO_NOTA.TP, e.target.value)}
-                        placeholder="Nota (0-10)"
-                        className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary transition-all text-lg font-mono"
-                      />
-                    </div>
-                  )}
+                  {catedra.cant_recuperatorios > 0 && [...Array(catedra.cant_recuperatorios)].map((_, i) => {
+                    const tipo = `recuperatorio_${i + 1}`
+                    return (
+                      <div key={tipo}>
+                        <label className="block text-sm font-medium text-foreground mb-2">
+                          Recuperatorio {catedra.cant_recuperatorios > 1 ? i + 1 : ''}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="10"
+                          step="0.01"
+                          value={notasAlumno.find(n => n.tipo === tipo)?.valor || ''}
+                          onChange={(e) => handleUpdateNota(tipo, e.target.value)}
+                          placeholder="Nota (0-10)"
+                          className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary transition-all text-lg font-mono"
+                        />
+                      </div>
+                    )
+                  })}
+                  {catedra.tiene_tp_evaluable && [...Array(Math.max(1, catedra.cant_tps || 0))].map((_, i) => {
+                    const tipo = `tp_${i + 1}`
+                    return (
+                      <div key={tipo}>
+                        <label className="block text-sm font-medium text-foreground mb-2">
+                          Trabajo Práctico {catedra.cant_tps > 1 ? i + 1 : ''}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="10"
+                          step="0.01"
+                          value={notasAlumno.find(n => n.tipo === tipo)?.valor || ''}
+                          onChange={(e) => handleUpdateNota(tipo, e.target.value)}
+                          placeholder="Nota (0-10)"
+                          className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary transition-all text-lg font-mono"
+                        />
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
 

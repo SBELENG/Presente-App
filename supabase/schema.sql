@@ -73,6 +73,9 @@ CREATE TABLE IF NOT EXISTS catedras (
   asistencia_teoria NUMERIC(4,2) DEFAULT 70,
   asistencia_practica NUMERIC(4,2) DEFAULT 80,
   comisiones_division JSONB DEFAULT '[]'::jsonb,
+  bloques_semanales JSONB DEFAULT '[]'::jsonb,
+  fecha_inicio_practica DATE,
+  fecha_fin_practica DATE,
   agenda_rota_practicas BOOLEAN DEFAULT FALSE,
   qr_code TEXT,
   docente_id UUID NOT NULL REFERENCES perfiles(id) ON DELETE CASCADE,
@@ -89,6 +92,7 @@ CREATE TABLE IF NOT EXISTS inscripciones (
   nombre_estudiante TEXT,
   apellido_estudiante TEXT,
   dni_estudiante TEXT NOT NULL,
+  email_estudiante TEXT,
   estado TEXT DEFAULT 'inscripto' CHECK (estado IN ('inscripto', 'pendiente')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(catedra_id, dni_estudiante)
@@ -105,6 +109,8 @@ CREATE TABLE IF NOT EXISTS clases (
   tema TEXT,
   estado_clase TEXT DEFAULT 'normal' CHECK (estado_clase IN ('normal', 'feriado', 'asueto', 'paro', 'suspension')),
   numero_clase INT,
+  latitud DOUBLE PRECISION,
+  longitud DOUBLE PRECISION,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -117,6 +123,10 @@ CREATE TABLE IF NOT EXISTS asistencias (
   inscripcion_id UUID NOT NULL REFERENCES inscripciones(id) ON DELETE CASCADE,
   estado TEXT DEFAULT 'ausente' CHECK (estado IN ('presente', 'ausente', 'pendiente', 'pendiente_inscripcion')),
   hora_registro TIMESTAMPTZ,
+  latitud DOUBLE PRECISION,
+  longitud DOUBLE PRECISION,
+  distancia_m DOUBLE PRECISION,
+  ubicacion_verificada BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(clase_id, inscripcion_id)
 );
@@ -144,50 +154,78 @@ ALTER TABLE asistencias ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notas ENABLE ROW LEVEL SECURITY;
 
 -- Perfiles: users can read/update their own profile
+DROP POLICY IF EXISTS "Users can view own profile" ON perfiles;
 CREATE POLICY "Users can view own profile" ON perfiles FOR SELECT USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Users can update own profile" ON perfiles;
 CREATE POLICY "Users can update own profile" ON perfiles FOR UPDATE USING (auth.uid() = id);
 
 -- Cátedras: docentes can CRUD their own
+DROP POLICY IF EXISTS "Docentes can view own catedras" ON catedras;
 CREATE POLICY "Docentes can view own catedras" ON catedras FOR SELECT USING (docente_id = auth.uid());
+
+DROP POLICY IF EXISTS "Docentes can insert catedras" ON catedras;
 CREATE POLICY "Docentes can insert catedras" ON catedras FOR INSERT WITH CHECK (docente_id = auth.uid());
+
+DROP POLICY IF EXISTS "Docentes can update own catedras" ON catedras;
 CREATE POLICY "Docentes can update own catedras" ON catedras FOR UPDATE USING (docente_id = auth.uid());
+
+DROP POLICY IF EXISTS "Docentes can delete own catedras" ON catedras;
 CREATE POLICY "Docentes can delete own catedras" ON catedras FOR DELETE USING (docente_id = auth.uid());
 
 -- Inscripciones: docentes can manage for their cátedras
+DROP POLICY IF EXISTS "Docentes can view inscripciones" ON inscripciones;
 CREATE POLICY "Docentes can view inscripciones" ON inscripciones FOR SELECT USING (
   catedra_id IN (SELECT id FROM catedras WHERE docente_id = auth.uid())
 );
+
+DROP POLICY IF EXISTS "Docentes can insert inscripciones" ON inscripciones;
 CREATE POLICY "Docentes can insert inscripciones" ON inscripciones FOR INSERT WITH CHECK (
   catedra_id IN (SELECT id FROM catedras WHERE docente_id = auth.uid())
 );
+
+DROP POLICY IF EXISTS "Docentes can update inscripciones" ON inscripciones;
 CREATE POLICY "Docentes can update inscripciones" ON inscripciones FOR UPDATE USING (
   catedra_id IN (SELECT id FROM catedras WHERE docente_id = auth.uid())
 );
 
 -- Clases: docentes can manage for their cátedras
+DROP POLICY IF EXISTS "Docentes can view clases" ON clases;
 CREATE POLICY "Docentes can view clases" ON clases FOR SELECT USING (
   catedra_id IN (SELECT id FROM catedras WHERE docente_id = auth.uid())
 );
+
+DROP POLICY IF EXISTS "Docentes can insert clases" ON clases;
 CREATE POLICY "Docentes can insert clases" ON clases FOR INSERT WITH CHECK (
   catedra_id IN (SELECT id FROM catedras WHERE docente_id = auth.uid())
 );
+
+DROP POLICY IF EXISTS "Docentes can update clases" ON clases;
 CREATE POLICY "Docentes can update clases" ON clases FOR UPDATE USING (
   catedra_id IN (SELECT id FROM catedras WHERE docente_id = auth.uid())
 );
 
 -- Asistencias: docentes can view for their cátedras, public insert for QR scanning
+DROP POLICY IF EXISTS "Docentes can view asistencias" ON asistencias;
 CREATE POLICY "Docentes can view asistencias" ON asistencias FOR SELECT USING (
   clase_id IN (SELECT c.id FROM clases c JOIN catedras cat ON c.catedra_id = cat.id WHERE cat.docente_id = auth.uid())
 );
+
+DROP POLICY IF EXISTS "Anyone can insert asistencia" ON asistencias;
 CREATE POLICY "Anyone can insert asistencia" ON asistencias FOR INSERT WITH CHECK (true);
 
 -- Notas: docentes can manage for their cátedras
+DROP POLICY IF EXISTS "Docentes can view notas" ON notas;
 CREATE POLICY "Docentes can view notas" ON notas FOR SELECT USING (
   catedra_id IN (SELECT id FROM catedras WHERE docente_id = auth.uid())
 );
+
+DROP POLICY IF EXISTS "Docentes can insert notas" ON notas;
 CREATE POLICY "Docentes can insert notas" ON notas FOR INSERT WITH CHECK (
   catedra_id IN (SELECT id FROM catedras WHERE docente_id = auth.uid())
 );
+
+DROP POLICY IF EXISTS "Docentes can update notas" ON notas;
 CREATE POLICY "Docentes can update notas" ON notas FOR UPDATE USING (
   catedra_id IN (SELECT id FROM catedras WHERE docente_id = auth.uid())
 );
