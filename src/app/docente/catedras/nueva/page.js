@@ -173,7 +173,7 @@ export default function NuevaCatedraPage() {
   }
 
   const canGoNext = () => {
-    if (step === 1) return form.nombre.trim() !== '' && form.codigo.trim() !== '' && form.anio.toString().trim() !== ''
+    if (step === 1) return form.nombre.trim() !== ''
     if (step === 2) return (form.fecha_inicio !== '' && form.fecha_fin !== '')
     return true
   }
