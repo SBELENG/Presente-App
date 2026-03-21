@@ -173,7 +173,7 @@ export default function NuevaCatedraPage() {
   }
 
   const canGoNext = () => {
-    if (step === 1) return form.nombre.trim() !== ''
+    if (step === 1) return form.nombre.trim() !== '' && form.codigo.trim() !== '' && form.carrera.trim() !== '' && form.anio.toString().trim() !== ''
     if (step === 2) return (form.fecha_inicio !== '' && form.fecha_fin !== '')
     return true
   }
@@ -283,7 +283,7 @@ export default function NuevaCatedraPage() {
                 <input type="text" value={form.nombre} onChange={e=>updateForm('nombre', e.target.value)} className="w-full px-4 py-3 bg-background border rounded-xl" placeholder="Ej: Enfermería en Salud Comunitaria I" />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1.5 uppercase text-[10px] text-muted">Código</label>
+                <label className="block text-sm font-medium mb-1.5 uppercase text-[10px] text-muted">Código *</label>
                 <input type="text" value={form.codigo} onChange={e=>updateForm('codigo', e.target.value)} className="w-full px-4 py-3 bg-background border rounded-xl" placeholder="103" />
               </div>
               <div>
@@ -291,7 +291,7 @@ export default function NuevaCatedraPage() {
                 <input type="text" value={form.institucion} onChange={e=>updateForm('institucion', e.target.value)} className="w-full px-4 py-3 bg-background border rounded-xl" placeholder="UNRC" />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1.5 uppercase text-[10px] text-muted">Carrera</label>
+                <label className="block text-sm font-medium mb-1.5 uppercase text-[10px] text-muted">Carrera *</label>
                 <input type="text" value={form.carrera} onChange={e=>updateForm('carrera', e.target.value)} className="w-full px-4 py-3 bg-background border rounded-xl" placeholder="Lic. en Enfermería" />
               </div>
               <div>
@@ -299,7 +299,7 @@ export default function NuevaCatedraPage() {
                 <input type="text" value={form.facultad} onChange={e=>updateForm('facultad', e.target.value)} className="w-full px-4 py-3 bg-background border rounded-xl" placeholder="Ciencias Humanas" />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1.5 uppercase text-[10px] text-muted">Año del plan</label>
+                <label className="block text-sm font-medium mb-1.5 uppercase text-[10px] text-muted">Año del plan *</label>
                 <input type="number" value={form.anio} onChange={e=>updateForm('anio', e.target.value)} className="w-full px-4 py-3 bg-background border rounded-xl" placeholder="1" />
               </div>
               <div>
