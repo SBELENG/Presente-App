@@ -85,7 +85,7 @@ export default function EstadisticasCatedraPage({ params }) {
       const maxP2 = Math.max(p2, rec)
       
       const hasAttendance = attPct >= catedra.porcentaje_asistencia
-      const canPromote = catedra.es_promocional && maxP1 >= catedra.nota_promocion && maxP2 >= catedra.nota_promocion && hasAttendance
+      const canPromote = catedra.es_promocional && maxP1 >= catedra.nota_promocion_minima && maxP2 >= catedra.nota_promocion_minima && hasAttendance
       const isRegular = maxP1 >= catedra.nota_regularizacion && maxP2 >= catedra.nota_regularizacion && hasAttendance
 
       if (canPromote) statusCounts.promocion++

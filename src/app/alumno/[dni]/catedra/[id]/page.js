@@ -90,7 +90,7 @@ export default function StudentCatedraDetailPage({ params }) {
   const maxP1 = Math.max(p1, rec)
   const maxP2 = Math.max(p2, rec)
   const hasAttendance = attendancePct >= (catedra.porcentaje_asistencia)
-  const canPromote = catedra.es_promocional && maxP1 >= (catedra.nota_promocion) && maxP2 >= (catedra.nota_promocion) && hasAttendance
+  const canPromote = catedra.es_promocional && maxP1 >= (catedra.nota_promocion_minima) && maxP2 >= (catedra.nota_promocion_minima) && hasAttendance
   const isRegular = maxP1 >= (catedra.nota_regularizacion) && maxP2 >= (catedra.nota_regularizacion) && hasAttendance
   
   const statusLabel = canPromote ? 'PROMOCIÓN' : isRegular ? 'REGULAR' : 'LIBRE'

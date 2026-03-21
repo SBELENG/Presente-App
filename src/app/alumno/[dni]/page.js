@@ -77,7 +77,7 @@ export default function StudentDashboardPage({ params }) {
 
       // Status Logic
       const hasAttendance = attendancePct >= (insc.catedras.porcentaje_asistencia)
-      const canPromote = insc.catedras.es_promocional && maxP1 >= (insc.catedras.nota_promocion) && maxP2 >= (insc.catedras.nota_promocion) && hasAttendance
+      const canPromote = insc.catedras.es_promocional && maxP1 >= (insc.catedras.nota_promocion_minima) && maxP2 >= (insc.catedras.nota_promocion_minima) && hasAttendance
       const isRegular = maxP1 >= (insc.catedras.nota_regularizacion) && maxP2 >= (insc.catedras.nota_regularizacion) && hasAttendance
 
       let status = 'LIBRE'

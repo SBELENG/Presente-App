@@ -309,7 +309,7 @@ export default function ConfigCatedraPage({ params }) {
             {form.es_promocional && (
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">Nota Promoción</label>
-                <input type="number" step="0.5" value={form.nota_promocion} onChange={(e) => updateForm('nota_promocion', e.target.value)} className="w-full px-4 py-2.5 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary outline-none" />
+                <input type="number" step="0.5" value={form.nota_promocion_minima || ''} onChange={(e) => updateForm('nota_promocion_minima', parseFloat(e.target.value) || 0)} className="w-full px-4 py-2.5 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary outline-none" />
               </div>
             )}
             <div>
