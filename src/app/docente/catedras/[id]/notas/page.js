@@ -251,12 +251,35 @@ export default function NotasPage({ params }) {
                       </div>
                     )
                   })}
-                  {catedra.tiene_tp_evaluable && [...Array(Math.max(1, catedra.cant_tps || 0))].map((_, i) => {
-                    const tipo = `tp_${i + 1}`
+                  {catedra.tiene_tp_evaluable && (catedra.metodo_tp || []).includes('separado') && 
+                   catedra.cant_tps_separados > 0 && [...Array(catedra.cant_tps_separados)].map((_, i) => {
+                    const tipo = `tp_separado_${i + 1}`
                     return (
                       <div key={tipo}>
                         <label className="block text-sm font-medium text-foreground mb-2">
-                          Trabajo Práctico {catedra.cant_tps > 1 ? i + 1 : ''}
+                          TP Separado {catedra.cant_tps_separados > 1 ? i + 1 : ''}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="10"
+                          step="0.01"
+                          value={notasAlumno.find(n => n.tipo === tipo)?.valor || ''}
+                          onChange={(e) => handleUpdateNota(tipo, e.target.value)}
+                          placeholder="Nota (0-10)"
+                          className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary transition-all text-lg font-mono"
+                        />
+                      </div>
+                    )
+                  })}
+                  
+                  {catedra.tiene_tp_evaluable && (catedra.metodo_tp || []).includes('con_parciales') && 
+                   catedra.cant_tps_con_parciales > 0 && [...Array(catedra.cant_tps_con_parciales)].map((_, i) => {
+                    const tipo = `tp_con_parcial_${i + 1}`
+                    return (
+                      <div key={tipo}>
+                        <label className="block text-sm font-medium text-foreground mb-2">
+                          TP c/ Parciales {catedra.cant_tps_con_parciales > 1 ? i + 1 : ''}
                         </label>
                         <input
                           type="number"
