@@ -24,10 +24,17 @@ export default function HomePage() {
           </div>
           <div className="hidden md:flex items-center gap-3">
             <Link
+              href="/alumno"
+              className="px-4 py-2 text-sm font-bold text-muted hover:text-foreground transition-colors"
+            >
+              Portal Estudiante
+            </Link>
+            <div className="w-px h-5 bg-border mx-1" />
+            <Link
               href="/login"
               className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
             >
-              Iniciar sesión
+              Acceso Docentes
             </Link>
             <Link
               href="/login"

@@ -11,6 +11,7 @@ import {
   ArrowRight
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import Script from 'next/script'
 
 export default function AsistenciaPublicaPage({ params }) {
@@ -244,9 +245,17 @@ export default function AsistenciaPublicaPage({ params }) {
             <p className="text-muted text-lg mb-4 leading-relaxed">
               Tu asistencia en <strong className="text-foreground">{catedra?.nombre}</strong> ha sido verificada con éxito.
             </p>
-            <div className="text-sm text-muted bg-background py-3 px-4 rounded-xl inline-block">
+            <div className="text-sm text-muted bg-background py-3 px-4 rounded-xl inline-block mb-8">
               {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}hs · {new Date().toLocaleDateString('es-AR')}
             </div>
+            
+            <Link 
+              href={`/alumno/${dni}`}
+              className="w-full py-4 bg-foreground text-background font-bold rounded-2xl hover:opacity-90 transition-all flex items-center justify-center gap-2 group"
+            >
+              Ver mi Estado Académico
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            </Link>
           </div>
         )}
 
@@ -260,10 +269,18 @@ export default function AsistenciaPublicaPage({ params }) {
             <p className="text-muted mb-6 leading-relaxed">
               Tu DNI no se encuentra en el listado oficial de <strong className="text-foreground">{catedra?.nombre}</strong> todavía. 
             </p>
-            <div className="p-4 bg-warning/5 border border-warning/20 rounded-2xl text-sm text-warning/90 text-left">
+            <div className="p-4 bg-warning/5 border border-warning/20 rounded-2xl text-sm text-warning/90 text-left mb-8">
               <p className="font-bold mb-1">No te preocupes:</p>
               Tu asistencia quedó registrada como <strong>pendiente</strong>. Se validará automáticamente cuando el docente cargue el listado definitivo de la cátedra.
             </div>
+
+            <Link 
+              href={`/alumno/${dni}`}
+              className="w-full py-4 bg-foreground text-background font-bold rounded-2xl hover:opacity-90 transition-all flex items-center justify-center gap-2 group"
+            >
+              Ver mi Estado Académico
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            </Link>
           </div>
         )}
 

@@ -159,16 +159,14 @@ export default function LoginPage() {
                 </div>
               </form>
 
-              <div className="mt-6 text-center">
-                <p className="text-sm text-muted">
-                  ¿Sos estudiante?{' '}
-                  <Link
-                    href="/registro"
-                    className="text-primary hover:text-primary-dark font-medium"
-                  >
-                    Registrate acá
-                  </Link>
-                </p>
+              <div className="mt-8 text-center pt-8 border-t border-border/50">
+                <p className="text-sm text-muted font-medium mb-4">¿Sos estudiante?</p>
+                <Link
+                  href="/alumno"
+                  className="w-full py-3 bg-surface border border-border text-foreground font-bold rounded-xl hover:border-primary/50 hover:bg-primary/5 transition-all flex items-center justify-center gap-2"
+                >
+                  Ir al Portal Estudiante
+                </Link>
               </div>
             </>
           ) : (
