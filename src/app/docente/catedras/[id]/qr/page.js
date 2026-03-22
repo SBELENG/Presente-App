@@ -29,22 +29,30 @@ export default function QRProyectarPage({ params }) {
 
   useEffect(() => {
     fetchData()
+  }, [id])
+
+  useEffect(() => {
+    if (!clase?.id) return
+    
     // Realtime attendance count
     const channel = supabase
-      .channel('attendance_count')
+      .channel(`attendance_${clase.id}`)
       .on('postgres_changes', { 
         event: 'INSERT', 
         schema: 'public', 
-        table: 'asistencias' 
-      }, () => {
-        fetchAttendanceCount()
+        table: 'asistencias',
+        filter: `clase_id=eq.${clase.id}`
+      }, (payload) => {
+        if (payload.new.estado === 'presente') {
+          setAttendanceCount(prev => prev + 1)
+        }
       })
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [id])
+  }, [clase?.id])
 
   const fetchData = async () => {
     setLoading(true)
