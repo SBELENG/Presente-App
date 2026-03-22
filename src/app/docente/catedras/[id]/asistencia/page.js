@@ -498,7 +498,7 @@ export default function AsistenciaDetallePage({ params }) {
       ? catedra.dias_practica
       : diasTeoria
 
-    const fT = esTeo ? generarFechas(catedra.fecha_inicio, catedra.fecha_fin, diasTeoria) : []
+    let fT = esTeo ? generarFechas(catedra.fecha_inicio, catedra.fecha_fin, diasTeoria) : []
     let fP = []
     if (catedra.agenda_rota_practicas && esPrac) {
       fP = generarFechas(
@@ -509,9 +509,23 @@ export default function AsistenciaDetallePage({ params }) {
     } else if (esPrac) {
       fP = generarFechas(catedra.fecha_inicio, catedra.fecha_fin, diasPractica)
     }
+    
+    // Defensa absoluta: Agregar fechas de clases reales que Next.js caché pudo haber forzado un día fuera de calendario
+    clases.forEach(c => {
+      const dbDate = new Date(c.fecha + 'T12:00:00')
+      if (esTeo && c.tipo.includes('teorico') && !fT.some(fecha => fecha.getTime() === dbDate.getTime())) {
+        fT.push(dbDate)
+      }
+      if (esPrac && c.tipo.includes('practic') && !fP.some(fecha => fecha.getTime() === dbDate.getTime())) {
+        fP.push(dbDate)
+      }
+    })
+    fT.sort((a, b) => a - b)
+    fP.sort((a, b) => a - b)
+
     const split = fT.length > 0 && fP.length > 0
     return { fechasTeoria: fT, fechasPractica: fP, hasSplit: split, diasPracticaGlobal: diasPractica, esTeo, esPrac }
-  }, [catedra])
+  }, [catedra, clases])
 
   // ── Filter alumnos ─────────────────────────────────────────────────────────
 
@@ -570,6 +584,15 @@ export default function AsistenciaDetallePage({ params }) {
         }
       }
     })
+    
+    // Defensa absoluta para comisiones: incluir las clases grabadas reales
+    clases.forEach(c => {
+      const dbDate = new Date(c.fecha + 'T12:00:00')
+      if (!resultado.some(fecha => fecha.getTime() === dbDate.getTime())) {
+        resultado.push(dbDate)
+      }
+    })
+
     resultado.sort((a, b) => a - b)
     return resultado
   }

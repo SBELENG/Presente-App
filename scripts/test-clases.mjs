@@ -1,16 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
-
-async function test() {
-  const { data: insc } = await supabase.from('inscripciones').select('catedra_id').eq('apellido_estudiante', 'Arguello').limit(1)
-  console.log("CATEDRA DE ARGUELLO:", insc)
-
-  const { data: cat } = await supabase.from('catedras').select('nombre').eq('id', insc[0].catedra_id).single()
-  console.log("NOMBRE DA CATEDRA:", cat.nombre)
-}
-
-test()
+const date = new Date('2026-03-22T01:29:29.000Z')
+const offset = 180
+const adjusted = new Date(date.getTime() - (offset * 60 * 1000))
+console.log(adjusted.toISOString().split('T')[0])
