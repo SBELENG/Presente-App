@@ -57,7 +57,10 @@ export default function QRProyectarPage({ params }) {
     setCatedra(cat)
 
     // Check for today's class or create it
-    const today = new Date().toISOString().split('T')[0]
+    const tzDate = new Date()
+    const offset = tzDate.getTimezoneOffset()
+    const today = new Date(tzDate.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0]
+    
     const { data: existingClase } = await supabase
       .from('clases')
       .select('*')
