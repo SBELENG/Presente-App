@@ -315,9 +315,6 @@ function Cell({ status, isException, isFuture, excState }) {
       <div className="w-6 h-6 rounded-full flex items-center justify-center">
         <XIcon className="w-3.5 h-3.5 text-danger/35" strokeWidth={2.5} />
       </div>
-      <div className="mt-8 text-center text-[8px] text-muted/30 font-mono uppercase tracking-[0.2em] mb-4">
-        Build: 2026-03-22-1955 · Cumulative Logic 1.1
-      </div>
     </div>
   )
 }
@@ -932,7 +929,10 @@ export default function AsistenciaDetallePage({ params }) {
           <ArrowDown className="w-5 h-5 text-muted" />
         </button>
       </div>
-
+      
+      <div className="mt-8 text-center text-[10px] text-muted/30 font-mono uppercase tracking-[0.2em] pb-12">
+        Build: 2026-03-22-2012 · Cumulative Logic Cleanup
+      </div>
     </div>
   )
 }
