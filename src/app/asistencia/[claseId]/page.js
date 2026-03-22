@@ -75,12 +75,15 @@ export default function AsistenciaPublicaPage({ params }) {
     // Intentar obtener ubicación
     try {
       if (navigator.geolocation) {
-        const pos = await new Promise((res, rej) => {
-          navigator.geolocation.getCurrentPosition(res, rej, { 
-            enableHighAccuracy: true,
-            timeout: 5000 
-          })
-        })
+        const pos = await Promise.race([
+          new Promise((res, rej) => {
+            navigator.geolocation.getCurrentPosition(res, rej, { 
+              enableHighAccuracy: true,
+              timeout: 4000 
+            })
+          }),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 4500))
+        ])
         lat = pos.coords.latitude
         lon = pos.coords.longitude
         
