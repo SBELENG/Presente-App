@@ -389,6 +389,15 @@ function AttendanceTable({ label, fechas, alumnos, asistencias, clases, requerid
             const pctOk = pct === null || pct >= requerido
             const presentes = tomadas.filter(f => !isExc(f) && getStatus(a.id, f) === 'presente').length
             const faltas = tomadas.filter(f => !isExc(f) && getStatus(a.id, f) === 'ausente').length
+
+            // Cálculo predictivo
+            const validasProyectadas = fechas.filter(f => !isExc(f)).length
+            const validasTomadas = tomadas.filter(f => !isExc(f)).length
+            const clasesRestantes = validasProyectadas - validasTomadas
+            const maxPosibles = presentes + clasesRestantes
+            const necesarios = Math.ceil(validasProyectadas * (requerido / 100))
+            const cannotPass = maxPosibles < necesarios
+
             return (
               <tr key={a.id} className="hover:bg-surface-hover/25 transition-colors group">
                 <td className="sticky left-0 z-10 bg-surface px-4 py-1.5 border-r border-border group-hover:bg-surface-hover/25 transition-colors">
@@ -405,10 +414,25 @@ function AttendanceTable({ label, fechas, alumnos, asistencias, clases, requerid
                   </div>
                 </td>
                 <td className="px-3 py-1.5 text-center border-r border-border">
-                  {pct === null
-                    ? <span className="text-[10px] text-muted/40">—</span>
-                    : <span className={`text-sm font-black ${pctOk ? 'text-success' : 'text-danger'}`}>{pct}%</span>
-                  }
+                  <div className="group/alert relative inline-flex items-center gap-1">
+                    {pct === null
+                      ? <span className="text-[10px] text-muted/40">—</span>
+                      : <span className={`text-sm font-black ${pctOk ? 'text-success' : 'text-danger'}`}>{pct}%</span>
+                    }
+                    {cannotPass && validas.length > 0 && (
+                      <AlertTriangle className="w-3.5 h-3.5 text-danger animate-pulse" />
+                    )}
+                    
+                    {cannotPass && validas.length > 0 && (
+                      <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 opacity-0 group-hover/alert:opacity-100 transition-opacity whitespace-nowrap">
+                        <div className="bg-danger text-white text-[10px] rounded-lg px-3 py-2 shadow-xl text-center">
+                          <p className="font-bold border-b border-white/20 pb-1 mb-1">Riesgo Académico</p>
+                          <p>Aunque asista a las {clasesRestantes} clases restantes,</p>
+                          <p>solo llegaría a un {Math.round((maxPosibles / validasProyectadas) * 100)}% (req. {requerido}%).</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </td>
                 <td className="px-2 py-1.5 text-center border-r border-border">
                   <div className="flex flex-col items-center gap-0">
