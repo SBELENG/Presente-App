@@ -268,6 +268,9 @@ function ExceptionsPanel({ open, onClose, allFechas, clases, catedraId, onSaved 
             Los cambios se aplican a la Matriz de Asistencia en tiempo real.
           </p>
         </div>
+        <div className="mt-8 text-center text-[8px] text-muted/30 font-mono uppercase tracking-[0.2em] border-t border-border/10 pt-4">
+           Ref: Build 2026-03-22-1925 · Cumulative Logic Active
+        </div>
       </div>
     </>
   )
@@ -311,6 +314,9 @@ function Cell({ status, isException, isFuture, excState }) {
     <div className="flex items-center justify-center h-9">
       <div className="w-6 h-6 rounded-full flex items-center justify-center">
         <XIcon className="w-3.5 h-3.5 text-danger/35" strokeWidth={2.5} />
+      </div>
+      <div className="mt-8 text-center text-[8px] text-muted/30 font-mono uppercase tracking-[0.2em] mb-4">
+        Build: 2026-03-22-1925 · Cumulative Logic 1.0
       </div>
     </div>
   )
