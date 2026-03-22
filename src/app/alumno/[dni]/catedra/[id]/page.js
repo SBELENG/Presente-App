@@ -79,22 +79,57 @@ export default function StudentCatedraDetailPage({ params }) {
   if (!data) return <div className="p-12 text-center">No se encontraron datos.</div>
 
   const { insc, catedra, classes, attendances, grades } = data
-  const validClasses = classes.filter(c => c.estado_clase === 'normal')
-  const totalPresents = attendances.filter(a => a.estado === 'presente' && validClasses.some(vc => vc.id === a.clase_id)).length
-  const attendancePct = Math.round((totalPresents / Math.max(validClasses.length, 1)) * 100)
+  const DIAS_MAP = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 0 }
+  
+  const generateProjectedDates = () => {
+    if (!catedra.fecha_inicio || !catedra.fecha_fin) return []
+    const res = []
+    const start = new Date(catedra.fecha_inicio + 'T12:00:00')
+    const end = new Date(catedra.fecha_fin + 'T12:00:00')
+    const scheduledDays = (catedra.dias_clase || []).map(d => DIAS_MAP[d])
+    
+    let cur = new Date(start)
+    while(cur <= end) {
+      if (scheduledDays.includes(cur.getDay())) {
+        res.push(new Date(cur))
+      }
+      cur.setDate(cur.getDate() + 1)
+    }
+    return res
+  }
 
-  // Status Logic (same as dashboard)
+  const projectedDates = generateProjectedDates()
+  
+  // A 'valid' class for the denominator is: 
+  // Any session in the plan, UNLESS it exists in the DB with status !== 'normal'
+  const validSessions = projectedDates.filter(dDate => {
+    const fs = dDate.toISOString().split('T')[0]
+    const dbClase = classes.find(c => c.fecha === fs)
+    return !dbClase || dbClase.estado_clase === 'normal'
+  })
+
+  const totalPresents = attendances.filter(a => a.estado === 'presente').length
+  const attendancePct = Math.round((totalPresents / Math.max(validSessions.length, 1)) * 100)
+
+  // Status Logic
   const p1 = grades.find(n => n.tipo === TIPO_NOTA.PARCIAL_1)?.valor || 0
   const p2 = grades.find(n => n.tipo === TIPO_NOTA.PARCIAL_2)?.valor || 0
   const rec = grades.find(n => n.tipo === TIPO_NOTA.RECUPERATORIO)?.valor || 0
   const maxP1 = Math.max(p1, rec)
   const maxP2 = Math.max(p2, rec)
+
+  // Predict if student can still pass attendance
+  const dictadasValidas = classes.filter(c => c.estado_clase === 'normal')
+  const restantes = validSessions.length - dictadasValidas.length
+  const maxFinalPct = Math.round(((totalPresents + restantes) / validSessions.length) * 100)
+  const cannotPassAttendance = maxFinalPct < catedra.porcentaje_asistencia
+
   const hasAttendance = attendancePct >= (catedra.porcentaje_asistencia)
-  const canPromote = catedra.es_promocional && maxP1 >= (catedra.nota_promocion_minima) && maxP2 >= (catedra.nota_promocion_minima) && hasAttendance
-  const isRegular = maxP1 >= (catedra.nota_regularizacion) && maxP2 >= (catedra.nota_regularizacion) && hasAttendance
+  const canPromote = catedra.es_promocional && maxP1 >= (catedra.nota_promocion_minima) && maxP2 >= (catedra.nota_promocion_minima) && !cannotPassAttendance
+  const isRegular = maxP1 >= (catedra.nota_regularizacion) && maxP2 >= (catedra.nota_regularizacion) && !cannotPassAttendance
   
-  const statusLabel = canPromote ? 'PROMOCIÓN' : isRegular ? 'REGULAR' : 'LIBRE'
-  const statusColor = canPromote ? 'text-primary' : isRegular ? 'text-success' : 'text-danger'
+  const statusLabel = cannotPassAttendance ? 'LIBRE (POR ASISTENCIA)' : canPromote ? 'PROMOCIÓN' : isRegular ? 'REGULAR' : 'CON POSIBILIDAD DE REGULARIZAR'
+  const statusColor = cannotPassAttendance ? 'text-danger' : canPromote ? 'text-primary' : isRegular ? 'text-success' : 'text-warning'
 
   return (
     <div className="min-h-screen bg-background p-6 md:p-12 print:p-0">

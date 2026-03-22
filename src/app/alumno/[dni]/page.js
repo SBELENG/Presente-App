@@ -51,7 +51,24 @@ export default function StudentDashboardPage({ params }) {
         .select('id, estado_clase')
         .eq('catedra_id', insc.catedra_id)
       
-      const validClasses = classes?.filter(c => c.estado_clase === 'normal') || []
+      const DIAS_MAP = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 0 }
+      const start = new Date(insc.catedras.fecha_inicio + 'T12:00:00')
+      const end = new Date(insc.catedras.fecha_fin + 'T12:00:00')
+      const scheduledDays = (insc.catedras.dias_clase || []).map(d => DIAS_MAP[d])
+      
+      let projectedCount = 0
+      let cur = new Date(start)
+      while(cur <= end) {
+        if (scheduledDays.includes(cur.getDay())) {
+          // Check if this date was an exception in the DB
+          const fs = cur.toISOString().split('T')[0]
+          const dbClase = classes?.find(c => c.fecha === fs)
+          if (!dbClase || dbClase.estado_clase === 'normal') {
+            projectedCount++
+          }
+        }
+        cur.setDate(cur.getDate() + 1)
+      }
 
       // Fetch attendance
       const { data: attendances } = await supabase
@@ -60,7 +77,7 @@ export default function StudentDashboardPage({ params }) {
         .eq('inscripcion_id', insc.id)
         .eq('estado', 'presente')
       
-      const attendancePct = Math.round((attendances?.length / Math.max(validClasses.length, 1)) * 100)
+      const attendancePct = Math.round((attendances?.length / Math.max(projectedCount, 1)) * 100)
 
       // Fetch grades
       const { data: grades } = await supabase

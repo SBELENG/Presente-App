@@ -333,11 +333,12 @@ function AttendanceTable({ label, fechas, alumnos, asistencias, clases, requerid
     return clase ? clase.estado_clase !== 'normal' : false
   }
   const tomadas = fechas.filter(f => getClase(f))
+  const validasProyectadas = fechas.filter(f => !isExc(f))
+
   const calcPct = (alumnoId) => {
-    const validas = tomadas.filter(f => !isExc(f))
-    if (!validas.length) return null
-    const p = validas.filter(f => getStatus(alumnoId, f) === 'presente').length
-    return Math.round((p / validas.length) * 100)
+    if (validasProyectadas.length === 0) return null
+    const p = tomadas.filter(f => !isExc(f) && getStatus(alumnoId, f) === 'presente').length
+    return Math.round((p / validasProyectadas.length) * 100)
   }
 
   if (!fechas.length) return null
@@ -419,16 +420,16 @@ function AttendanceTable({ label, fechas, alumnos, asistencias, clases, requerid
                       ? <span className="text-[10px] text-muted/40">—</span>
                       : <span className={`text-sm font-black ${pctOk ? 'text-success' : 'text-danger'}`}>{pct}%</span>
                     }
-                    {cannotPass && validas.length > 0 && (
+                    {cannotPass && validasProyectadas.length > 0 && (
                       <AlertTriangle className="w-3.5 h-3.5 text-danger animate-pulse" />
                     )}
                     
-                    {cannotPass && validas.length > 0 && (
+                    {cannotPass && validasProyectadas.length > 0 && (
                       <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 opacity-0 group-hover/alert:opacity-100 transition-opacity whitespace-nowrap">
                         <div className="bg-danger text-white text-[10px] rounded-lg px-3 py-2 shadow-xl text-center">
                           <p className="font-bold border-b border-white/20 pb-1 mb-1">Riesgo Académico</p>
-                          <p>Aunque asista a las {clasesRestantes} clases restantes,</p>
-                          <p>solo llegaría a un {Math.round((maxPosibles / validasProyectadas) * 100)}% (req. {requerido}%).</p>
+                          <p>Incluso asistiendo perfecto a las {clasesRestantes} clases que faltan,</p>
+                          <p>solo llegaría a un {Math.round((maxPosibles / validasProyectadas.length) * 100)}% (requiere {requerido}%).</p>
                         </div>
                       </div>
                     )}
