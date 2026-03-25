@@ -205,21 +205,27 @@ export default function NotasPage() {
         
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-12">
           <div>
-            <Link href={`/docente/catedras/${id}`} className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400 hover:text-blue-600 transition-all mb-4">
+            <Link href={`/docente/catedras/${id}`} className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-blue-700 transition-all mb-4">
               <ArrowLeft className="w-4 h-4" /> Volver al panel de la cátedra
             </Link>
             <h1 className="text-5xl font-black text-slate-900 tracking-tighter leading-none mb-2">
               Matriz de Notas
             </h1>
-            <p className="text-slate-500 font-medium">Calificaciones y condición académica actual.</p>
+            <p className="text-slate-600 font-bold">Calificaciones y condición académica actual.</p>
           </div>
 
           <div className="flex flex-col md:flex-row items-center gap-4">
             <div className="relative group w-full md:w-80">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-blue-500 transition-colors" />
-              <input type="text" placeholder="Buscar alumno..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-12 pr-6 py-4 bg-white border-2 border-slate-100 rounded-2xl shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all font-bold" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-blue-600 transition-colors" />
+              <input 
+                type="text" 
+                placeholder="Buscar por nombre o DNI..." 
+                value={search} 
+                onChange={(e) => setSearch(e.target.value)} 
+                className="w-full pl-12 pr-6 py-4 bg-white border-2 border-slate-200 rounded-2xl shadow-sm focus:border-blue-600 focus:ring-4 focus:ring-blue-100 text-slate-900 placeholder-slate-400 outline-none transition-all font-black text-sm" 
+              />
             </div>
-            <button onClick={handleSave} disabled={saving} className="w-full md:w-auto px-10 py-4 bg-blue-600 text-white font-black rounded-2xl shadow-2xl shadow-blue-600/30 hover:bg-blue-500 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-3 disabled:opacity-50">
+            <button onClick={handleSave} disabled={saving} className="w-full md:w-auto px-10 py-4 bg-blue-600 text-white font-black rounded-2xl shadow-xl shadow-blue-600/25 hover:bg-blue-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-3 disabled:opacity-50">
               {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
               GUARDAR CAMBIOS
             </button>
@@ -227,22 +233,22 @@ export default function NotasPage() {
         </div>
 
         {message.text && (
-          <div className={`mb-8 p-6 rounded-3xl border-2 flex items-center gap-4 animate-fade-in ${message.type === 'error' ? 'bg-red-50 border-red-100 text-red-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'}`}>
+          <div className={`mb-8 p-6 rounded-3xl border-2 flex items-center gap-4 animate-fade-in ${message.type === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
             {message.type === 'error' ? <AlertCircle className="w-6 h-6" /> : <CheckCircle2 className="w-6 h-6" />}
             <span className="font-black text-sm uppercase tracking-wide">{message.text}</span>
           </div>
         )}
 
-        <div className="bg-white rounded-[2.5rem] border-2 border-slate-100 shadow-2xl shadow-slate-200/50 overflow-hidden">
+        <div className="bg-white rounded-[2.5rem] border-2 border-slate-200 shadow-2xl shadow-slate-300/30 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="bg-slate-50/50 border-b-2 border-slate-100">
-                  <th className="p-8 text-[11px] font-black uppercase text-slate-400 tracking-[0.2em]">Alumno / Inscripto</th>
-                  <th className="p-8 text-[11px] font-black uppercase text-slate-400 tracking-[0.2em] text-center">Nota 1</th>
-                  <th className="p-8 text-[11px] font-black uppercase text-slate-400 tracking-[0.2em] text-center">Nota 2</th>
-                  <th className="p-8 text-[11px] font-black uppercase text-slate-400 tracking-[0.2em] text-center">Promedio</th>
-                  <th className="p-8 text-[11px] font-black uppercase text-slate-400 tracking-[0.2em] text-center bg-blue-50/30">Estado Académico</th>
+                <tr className="bg-slate-50 border-b-2 border-slate-100">
+                  <th className="p-8 text-[11px] font-black uppercase text-slate-500 tracking-[0.2em]">Alumno / Inscripto</th>
+                  <th className="p-8 text-[11px] font-black uppercase text-slate-500 tracking-[0.2em] text-center">Nota 1</th>
+                  <th className="p-8 text-[11px] font-black uppercase text-slate-500 tracking-[0.2em] text-center">Nota 2</th>
+                  <th className="p-8 text-[11px] font-black uppercase text-slate-500 tracking-[0.2em] text-center">Promedio</th>
+                  <th className="p-8 text-[11px] font-black uppercase text-slate-600 tracking-[0.2em] text-center bg-blue-50/50">Estado Académico</th>
                 </tr>
               </thead>
               <tbody className="divide-y-2 divide-slate-50">
@@ -250,27 +256,44 @@ export default function NotasPage() {
                   filteredStudents.map((s) => {
                     const status = calculateStatus(s.id);
                     return (
-                      <tr key={s.id} className="group hover:bg-slate-50/50 transition-colors">
+                      <tr key={s.id} className="group hover:bg-blue-50/5 transition-colors">
                         <td className="p-8">
                           <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center font-black text-slate-400 text-sm">{s.apellido_estudiante?.[0]}{s.nombre_estudiante?.[0]}</div>
+                            <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center font-black text-slate-500 text-sm">{s.apellido_estudiante?.[0]}{s.nombre_estudiante?.[0]}</div>
                             <div>
-                              <p className="font-black text-slate-800 text-lg uppercase tracking-tight leading-none mb-1">{s.apellido_estudiante}, {s.nombre_estudiante}</p>
-                              <p className="text-xs font-bold text-slate-300 tracking-widest uppercase">DNI: {s.dni_estudiante}</p>
+                              <p className="font-black text-slate-900 text-lg uppercase tracking-tight leading-none mb-1">{s.apellido_estudiante}, {s.nombre_estudiante}</p>
+                              <p className="text-xs font-bold text-slate-500 tracking-widest uppercase">DNI: {s.dni_estudiante}</p>
                             </div>
                           </div>
                         </td>
                         <td className="p-8 text-center">
-                          <input type="number" step="0.5" value={matrix[s.id]?.[TIPO_NOTA.PARCIAL_1] || ''} onChange={(e) => handleInputChange(s.id, TIPO_NOTA.PARCIAL_1, e.target.value)} className="w-20 p-4 text-center border-2 border-slate-100 rounded-2xl font-black bg-slate-50 focus:bg-white focus:border-blue-500 outline-none transition-all" placeholder="-" />
+                          <input 
+                            type="number" 
+                            step="0.5" 
+                            value={matrix[s.id]?.[TIPO_NOTA.PARCIAL_1] || ''} 
+                            onChange={(e) => handleInputChange(s.id, TIPO_NOTA.PARCIAL_1, e.target.value)} 
+                            className="w-20 p-4 text-center border-2 border-slate-200 rounded-2xl font-black bg-white text-slate-900 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm" 
+                            placeholder="-" 
+                          />
                         </td>
                         <td className="p-8 text-center">
-                          <input type="number" step="0.5" value={matrix[s.id]?.[TIPO_NOTA.PARCIAL_2] || ''} onChange={(e) => handleInputChange(s.id, TIPO_NOTA.PARCIAL_2, e.target.value)} className="w-20 p-4 text-center border-2 border-slate-100 rounded-2xl font-black bg-slate-50 focus:bg-white focus:border-blue-500 outline-none transition-all" placeholder="-" />
+                          <input 
+                            type="number" 
+                            step="0.5" 
+                            value={matrix[s.id]?.[TIPO_NOTA.PARCIAL_2] || ''} 
+                            onChange={(e) => handleInputChange(s.id, TIPO_NOTA.PARCIAL_2, e.target.value)} 
+                            className="w-20 p-4 text-center border-2 border-slate-200 rounded-2xl font-black bg-white text-slate-900 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm" 
+                            placeholder="-" 
+                          />
                         </td>
                         <td className="p-8 text-center">
-                          <div className="inline-flex items-center gap-2 px-6 py-4 rounded-2xl bg-slate-100/50 font-black text-slate-400 text-xl"><Calculator className="w-4 h-4 opacity-30" />{calculatePromedio(s.id)}</div>
+                          <div className="inline-flex items-center gap-2 px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 font-black text-slate-900 text-xl shadow-inner-sm">
+                            <Calculator className="w-4 h-4 text-slate-300" />
+                            {calculatePromedio(s.id)}
+                          </div>
                         </td>
-                        <td className="p-8 text-center bg-blue-50/10 group-hover:bg-blue-50/20 transition-colors">
-                          <div className={`inline-flex items-center gap-2 px-6 py-3 rounded-full border font-black text-xs tracking-widest ${status.color}`}>
+                        <td className="p-8 text-center bg-blue-50/20 group-hover:bg-blue-50/30 transition-colors">
+                          <div className={`inline-flex items-center gap-2 px-6 py-3 rounded-full border-2 font-black text-xs tracking-widest shadow-sm ${status.color}`}>
                             {status.icon}
                             {status.label}
                           </div>
