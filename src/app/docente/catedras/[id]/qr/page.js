@@ -78,6 +78,7 @@ export default function QRProyectarPage({ params }) {
 
     if (existingClase) {
       setClase(existingClase)
+      fetchAttendanceCount(existingClase.id)
     } else {
       const { data: newClase, error } = await supabase
         .from('clases')
@@ -91,19 +92,21 @@ export default function QRProyectarPage({ params }) {
         .select()
         .single()
       
-      if (!error) setClase(newClase)
+      if (!error) {
+        setClase(newClase)
+        fetchAttendanceCount(newClase.id)
+      }
     }
 
     setLoading(false)
-    if (clase) fetchAttendanceCount()
   }
 
-  const fetchAttendanceCount = async () => {
-    if (!clase) return
+  const fetchAttendanceCount = async (claseId) => {
+    if (!claseId) return
     const { count } = await supabase
       .from('asistencias')
       .select('*', { count: 'exact', head: true })
-      .eq('clase_id', clase.id)
+      .eq('clase_id', claseId)
       .eq('estado', 'presente')
     
     setAttendanceCount(count || 0)
