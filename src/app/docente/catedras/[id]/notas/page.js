@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useParams } from 'next/navigation';
 import { 
@@ -13,10 +13,12 @@ import {
   Calculator,
   UserCheck,
   Trophy,
-  AlertTriangle
+  AlertTriangle,
+  ClipboardList
 } from 'lucide-react';
 import Link from 'next/link';
 import { TIPO_NOTA } from '@/lib/constants';
+import { calculateAcademicStatus } from '@/lib/academic-logic';
 
 export default function NotasPage() {
   const params = useParams();
@@ -33,6 +35,35 @@ export default function NotasPage() {
   const [message, setMessage] = useState({ type: '', text: '' });
   
   const supabase = createClient();
+
+  // Definition of dynamic columns based on config
+  const evaluaciones = useMemo(() => {
+    if (!catedra) return [];
+    const evals = [];
+    
+    // Parciales
+    for (let i = 1; i <= (catedra.cant_parciales || 0); i++) {
+      evals.push({ id: `parcial_${i}`, label: `Parcial ${i}`, short: `P${i}`, type: 'parcial' });
+    }
+    
+    // Recuperatorios
+    for (let i = 1; i <= (catedra.cant_recuperatorios || 0); i++) {
+      evals.push({ id: `recuperatorio_${i}`, label: `Recuperatorio ${i}`, short: `R${i}`, type: 'rec' });
+    }
+    
+    // TPs
+    if (catedra.tiene_tp_evaluable) {
+      const cantTps = (catedra.cant_tps_separados || 0) + (catedra.cant_tps_con_parciales || 0) || (catedra.cant_tps || 0);
+      for (let i = 1; i <= cantTps; i++) {
+        evals.push({ id: `tp_${i}`, label: `TP ${i}`, short: `TP${i}`, type: 'tp' });
+      }
+    }
+
+    // Final
+    evals.push({ id: 'final', label: 'Examen Final', short: 'Final', type: 'final' });
+    
+    return evals;
+  }, [catedra]);
 
   useEffect(() => {
     if (id) fetchData();
@@ -78,14 +109,22 @@ export default function NotasPage() {
       });
       setAttendanceMap(attMap);
 
-      // 5. Initialize Matrix
+      // 5. Initialize Matrix dynamically
       const initialMatrix = {};
+      
+      // We need to know which evaluations we are looking for
+      const evalIds = [
+        ...Array.from({length: catData.cant_parciales || 2}, (_, i) => `parcial_${i+1}`),
+        ...Array.from({length: catData.cant_recuperatorios || 1}, (_, i) => `recuperatorio_${i+1}`),
+        ...Array.from({length: (catData.cant_tps_separados || 0) + (catData.cant_tps_con_parciales || 0) || (catData.cant_tps || 0)}, (_, i) => `tp_${i+1}`),
+        'final'
+      ];
+
       students?.forEach(student => {
-        initialMatrix[student.id] = {
-          [TIPO_NOTA.PARCIAL_1]: '',
-          [TIPO_NOTA.PARCIAL_2]: '',
-          'final': ''
-        };
+        initialMatrix[student.id] = {};
+        evalIds.forEach(eid => {
+          initialMatrix[student.id][eid] = '';
+        });
       });
 
       gradesData?.forEach(grade => {
@@ -97,7 +136,7 @@ export default function NotasPage() {
       setMatrix(initialMatrix);
     } catch (err) {
       console.error('Fetch error:', err);
-      setMessage({ type: 'error', text: 'ERROR CRÍTICO: No se pudo conectar con el listado de inscriptos (Matrix V3).' });
+      setMessage({ type: 'error', text: 'ERROR CRÍTICO: No se pudo conectar con el listado de inscriptos.' });
     } finally {
       setLoading(false);
     }
@@ -107,33 +146,50 @@ export default function NotasPage() {
     if (!catedra) return { label: '-', color: 'text-slate-400' };
     
     const grades = matrix[studentId];
+    if (!grades) return { label: '-', color: 'text-slate-400' };
+
+    // --- 1. ATTENDANCE CALCULATION ---
     const presents = attendanceMap[studentId] || 0;
-    const attPct = totalClases > 0 ? (presents / totalClases) * 100 : 100;
-    
-    const p1 = parseFloat(grades?.[TIPO_NOTA.PARCIAL_1]);
-    const p2 = parseFloat(grades?.[TIPO_NOTA.PARCIAL_2]);
-    
-    const hasAttendance = attPct >= catedra.porcentaje_asistencia;
+    const hasAnyAttendanceInCatedra = Object.values(attendanceMap).some(v => v > 0);
+    const attPct = (totalClases > 0 && hasAnyAttendanceInCatedra) ? (presents / totalClases) * 100 : 100;
 
-    // Conditions based on UNRC rules + Catedra config
-    const isRegular = !isNaN(p1) && !isNaN(p2) && 
-                      p1 >= (catedra.nota_regularizacion || 5) && 
-                      p2 >= (catedra.nota_regularizacion || 5) && 
-                      hasAttendance;
+    const academic = calculateAcademicStatus(catedra, grades, attPct);
 
-    const canPromote = catedra.es_promocional && isRegular && 
-                       p1 >= (catedra.nota_promocion_minima || 7) && 
-                       p2 >= (catedra.nota_promocion_minima || 7);
+    // Adapt structure for the UI icons/colors
+    const iconMap = {
+      'PROMOCION': <Trophy className="w-4 h-4" />,
+      'REGULAR': <UserCheck className="w-4 h-4" />,
+      'LIBRE': <AlertTriangle className="w-4 h-4" />,
+      'EN_CURSO': null
+    };
 
-    if (canPromote) return { label: 'PROMOCIÓN', color: 'text-indigo-600 bg-indigo-50 border-indigo-100', icon: <Trophy className="w-4 h-4" /> };
-    if (isRegular) return { label: 'REGULAR', color: 'text-emerald-600 bg-emerald-50 border-emerald-100', icon: <UserCheck className="w-4 h-4" /> };
+    // Keep the specific colors of the teacher view if they were different
+    const colorMap = {
+      'PROMOCION': 'text-indigo-600 bg-indigo-50 border-indigo-100',
+      'REGULAR': 'text-emerald-600 bg-emerald-50 border-emerald-100',
+      'LIBRE': 'text-rose-600 bg-rose-50 border-rose-100',
+      'EN_CURSO': 'text-slate-400 bg-slate-50 border-slate-100'
+    };
+
+    return { 
+      label: academic.label, 
+      color: colorMap[academic.key] || academic.color, 
+      icon: iconMap[academic.key] 
+    };
+  };
+
+  const calculatePromedio = (studentId) => {
+    const grades = matrix[studentId];
+    if (!grades) return '-';
     
-    // If we have both grades but didn't meet the regular cut-off
-    if (!isNaN(p1) && !isNaN(p2)) {
-      return { label: 'LIBRE', color: 'text-rose-600 bg-rose-50 border-rose-100', icon: <AlertTriangle className="w-4 h-4" /> };
+    const vals = [];
+    for (let i = 1; i <= (catedra?.cant_parciales || 0); i++) {
+        const v = parseFloat(grades[`parcial_${i}`]);
+        if (!isNaN(v)) vals.push(v);
     }
-
-    return { label: 'EN CURSO', color: 'text-slate-400 bg-slate-50 border-slate-100', icon: null };
+    
+    if (vals.length > 0) return (vals.reduce((a,b) => a+b, 0) / vals.length).toFixed(1);
+    return '-';
   };
 
   const handleInputChange = (inscId, tipo, value) => {
@@ -143,15 +199,6 @@ export default function NotasPage() {
       ...prev,
       [inscId]: { ...prev[inscId], [tipo]: value }
     }));
-  };
-
-  const calculatePromedio = (studentId) => {
-    const grades = matrix[studentId];
-    if (!grades) return '-';
-    const v1 = parseFloat(grades[TIPO_NOTA.PARCIAL_1]);
-    const v2 = parseFloat(grades[TIPO_NOTA.PARCIAL_2]);
-    if (!isNaN(v1) && !isNaN(v2)) return ((v1 + v2) / 2).toFixed(1);
-    return '-';
   };
 
   const handleSave = async () => {
@@ -172,6 +219,13 @@ export default function NotasPage() {
           }
         });
       });
+
+      if (updates.length === 0) {
+          setMessage({ type: 'error', text: 'No hay cambios para guardar.' });
+          setSaving(false);
+          return;
+      }
+
       const { error } = await supabase.from('notas').upsert(updates, { onConflict: 'inscripcion_id, tipo' });
       if (error) throw error;
       setMessage({ type: 'success', text: 'Notas y estados actualizados con éxito.' });
@@ -190,10 +244,13 @@ export default function NotasPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-slate-100/50">
         <div className="flex flex-col items-center">
-          <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
-          <p className="font-black text-slate-400 uppercase tracking-widest text-xs">Calculando estados académicos...</p>
+          <div className="relative mb-6">
+            <Loader2 className="w-16 h-16 text-blue-600 animate-spin" />
+            <ClipboardList className="w-6 h-6 text-blue-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+          </div>
+          <p className="font-black text-slate-400 uppercase tracking-widest text-xs animate-pulse">Sincronizando Matriz Académica...</p>
         </div>
       </div>
     );
@@ -201,8 +258,9 @@ export default function NotasPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col p-4 md:p-12">
-      <div className="max-w-[1400px] mx-auto w-full">
+      <div className="max-w-[1600px] mx-auto w-full">
         
+        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-12">
           <div>
             <Link href={`/docente/catedras/${id}`} className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-blue-700 transition-all mb-4">
@@ -211,7 +269,10 @@ export default function NotasPage() {
             <h1 className="text-5xl font-black text-slate-900 tracking-tighter leading-none mb-2">
               Matriz de Notas
             </h1>
-            <p className="text-slate-600 font-bold">Calificaciones y condición académica actual.</p>
+            <p className="text-slate-600 font-bold flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                Configuración: {catedra?.cant_parciales} Parciales, {catedra?.cant_recuperatorios} Rec., {catedra?.tiene_tp_evaluable ? 'con TPs' : 'sin TPs'}
+            </p>
           </div>
 
           <div className="flex flex-col md:flex-row items-center gap-4">
@@ -239,14 +300,29 @@ export default function NotasPage() {
           </div>
         )}
 
+        {/* Table Container */}
         <div className="bg-white rounded-[2.5rem] border-2 border-slate-200 shadow-2xl shadow-slate-300/30 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-slate-50 border-b-2 border-slate-100">
-                  <th className="p-8 text-[11px] font-black uppercase text-slate-500 tracking-[0.2em]">Alumno / Inscripto</th>
-                  <th className="p-8 text-[11px] font-black uppercase text-slate-500 tracking-[0.2em] text-center">Nota 1</th>
-                  <th className="p-8 text-[11px] font-black uppercase text-slate-500 tracking-[0.2em] text-center">Nota 2</th>
+                  <th className="p-8 text-[11px] font-black uppercase text-slate-500 tracking-[0.2em] sticky left-0 bg-slate-50 z-10">Alumno / Inscripto</th>
+                  
+                  {/* Dynamic Headers */}
+                  {evaluaciones.map(ev => (
+                    <th key={ev.id} className={`p-8 text-[11px] font-black uppercase tracking-[0.2em] text-center ${
+                        ev.type === 'parcial' ? 'text-blue-500' : 
+                        ev.type === 'rec' ? 'text-amber-500' : 
+                        ev.type === 'tp' ? 'text-purple-500' :
+                        'text-emerald-500'
+                    }`}>
+                        <div className="flex flex-col items-center">
+                            <span className="text-[10px] opacity-60 mb-1">{ev.label}</span>
+                            <span className="text-sm font-black">{ev.short}</span>
+                        </div>
+                    </th>
+                  ))}
+
                   <th className="p-8 text-[11px] font-black uppercase text-slate-500 tracking-[0.2em] text-center">Promedio</th>
                   <th className="p-8 text-[11px] font-black uppercase text-slate-600 tracking-[0.2em] text-center bg-blue-50/50">Estado Académico</th>
                 </tr>
@@ -257,7 +333,7 @@ export default function NotasPage() {
                     const status = calculateStatus(s.id);
                     return (
                       <tr key={s.id} className="group hover:bg-blue-50/5 transition-colors">
-                        <td className="p-8">
+                        <td className="p-8 sticky left-0 bg-white group-hover:bg-blue-50/5 z-10 border-r border-slate-50">
                           <div className="flex items-center gap-4">
                             <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center font-black text-slate-500 text-sm">{s.apellido_estudiante?.[0]}{s.nombre_estudiante?.[0]}</div>
                             <div>
@@ -266,26 +342,26 @@ export default function NotasPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="p-8 text-center">
-                          <input 
-                            type="number" 
-                            step="0.5" 
-                            value={matrix[s.id]?.[TIPO_NOTA.PARCIAL_1] || ''} 
-                            onChange={(e) => handleInputChange(s.id, TIPO_NOTA.PARCIAL_1, e.target.value)} 
-                            className="w-20 p-4 text-center border-2 border-slate-200 rounded-2xl font-black bg-white text-slate-900 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm" 
-                            placeholder="-" 
-                          />
-                        </td>
-                        <td className="p-8 text-center">
-                          <input 
-                            type="number" 
-                            step="0.5" 
-                            value={matrix[s.id]?.[TIPO_NOTA.PARCIAL_2] || ''} 
-                            onChange={(e) => handleInputChange(s.id, TIPO_NOTA.PARCIAL_2, e.target.value)} 
-                            className="w-20 p-4 text-center border-2 border-slate-200 rounded-2xl font-black bg-white text-slate-900 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm" 
-                            placeholder="-" 
-                          />
-                        </td>
+
+                        {/* Dynamic Inputs */}
+                        {evaluaciones.map(ev => (
+                            <td key={ev.id} className="p-8 text-center">
+                                <input 
+                                    type="number" 
+                                    step="0.5" 
+                                    value={matrix[s.id]?.[ev.id] || ''} 
+                                    onChange={(e) => handleInputChange(s.id, ev.id, e.target.value)} 
+                                    className={`w-16 p-3 text-center border-2 rounded-2xl font-black bg-white focus:ring-4 outline-none transition-all shadow-sm ${
+                                        ev.type === 'parcial' ? 'border-blue-100 focus:border-blue-600 focus:ring-blue-100 text-blue-900' : 
+                                        ev.type === 'rec' ? 'border-amber-100 focus:border-amber-600 focus:ring-amber-100 text-amber-900' : 
+                                        ev.type === 'tp' ? 'border-purple-100 focus:border-purple-600 focus:ring-purple-100 text-purple-900' :
+                                        'border-emerald-100 focus:border-emerald-600 focus:ring-emerald-100 text-emerald-900'
+                                    }`} 
+                                    placeholder="-" 
+                                />
+                            </td>
+                        ))}
+
                         <td className="p-8 text-center">
                           <div className="inline-flex items-center gap-2 px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 font-black text-slate-900 text-xl shadow-inner-sm">
                             <Calculator className="w-4 h-4 text-slate-300" />
@@ -293,7 +369,7 @@ export default function NotasPage() {
                           </div>
                         </td>
                         <td className="p-8 text-center bg-blue-50/20 group-hover:bg-blue-50/30 transition-colors">
-                          <div className={`inline-flex items-center gap-2 px-6 py-3 rounded-full border-2 font-black text-xs tracking-widest shadow-sm ${status.color}`}>
+                          <div className={`inline-flex items-center gap-2 px-6 py-3 rounded-full border-2 font-black text-[10px] tracking-widest shadow-sm transition-all hover:scale-105 ${status.color}`}>
                             {status.icon}
                             {status.label}
                           </div>
@@ -303,8 +379,11 @@ export default function NotasPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="5" className="p-32 text-center">
-                       <div className="flex flex-col items-center opacity-20"><Search className="w-20 h-20 mb-4" /><p className="font-black text-2xl uppercase tracking-[0.3em]">Sin alumnos</p></div>
+                    <td colSpan={evaluaciones.length + 3} className="p-32 text-center">
+                       <div className="flex flex-col items-center opacity-20">
+                           <Search className="w-20 h-20 mb-4" />
+                           <p className="font-black text-2xl uppercase tracking-[0.3em]">Sin alumnos para mostrar</p>
+                       </div>
                     </td>
                   </tr>
                 )}
@@ -313,11 +392,20 @@ export default function NotasPage() {
           </div>
         </div>
 
-        <div className="mt-10 flex flex-col md:flex-row items-center justify-between gap-4 text-slate-400">
-           <p className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Estados calculados según {catedra?.porcentaje_asistencia}% asistencia
+        {/* Footer info */}
+        <div className="mt-10 flex flex-col md:flex-row items-center justify-between gap-6 text-slate-400">
+           <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+               <p className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Asistencia requerida: {catedra?.porcentaje_asistencia}%
+               </p>
+               <div className="hidden md:block w-1.5 h-1.5 rounded-full bg-slate-200" />
+               <p className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                  <Calculator className="w-4 h-4 text-blue-500" /> Regularización: {catedra?.nota_regularizacion || 5}+ 
+               </p>
+           </div>
+           <p className="text-xs font-black uppercase tracking-tighter bg-white px-6 py-3 rounded-2xl border-2 border-slate-100 text-slate-500 shadow-sm">
+               Total registros: {filteredStudents.length} / {inscriptos.length}
            </p>
-           <p className="text-xs font-bold uppercase tracking-widest">Mostrando {filteredStudents.length} de {inscriptos.length} alumnos registrados</p>
         </div>
       </div>
     </div>

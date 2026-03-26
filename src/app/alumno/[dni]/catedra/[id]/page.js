@@ -5,7 +5,6 @@ import { createClient } from '@/lib/supabase/client'
 import { 
   ArrowLeft, 
   CheckCircle, 
-  XLogo, 
   FileText, 
   Download, 
   Printer,
@@ -15,14 +14,17 @@ import {
   Loader2,
   Trophy,
   History,
-  GraduationCap
+  GraduationCap,
+  Minus
 } from 'lucide-react'
 import Link from 'next/link'
+import { useParams } from 'next/navigation'
 import { TIPO_NOTA } from '@/lib/constants'
+import { calculateAcademicStatus } from '@/lib/academic-logic'
 
-export default function StudentCatedraDetailPage({ params }) {
-  const unwrappedParams = use(params)
-  const { dni, id } = unwrappedParams
+export default function StudentCatedraDetailPage() {
+  const params = useParams()
+  const { dni, id } = params
   
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -109,27 +111,31 @@ export default function StudentCatedraDetailPage({ params }) {
   })
 
   const totalPresents = attendances.filter(a => a.estado === 'presente').length
-  const attendancePct = Math.round((totalPresents / Math.max(validSessions.length, 1)) * 100)
+  const dictadasValidas = classes.filter(c => c.estado_clase === 'normal')
+  const attendancePct = dictadasValidas.length > 0 ? Math.round((totalPresents / dictadasValidas.length) * 100) : 100
 
-  // Status Logic
+  // Status Logic using Shared Academic Logic
+  const gradesObj = {};
+  grades.forEach(n => {
+    gradesObj[n.tipo] = n.valor;
+  });
+
+  const academic = calculateAcademicStatus(catedra, gradesObj, attendancePct);
+
+  // Predict if student can still pass attendance
+  const poolRestantes = Math.max(0, validSessions.length - dictadasValidas.length)
+  const maxFinalPct = Math.round(((totalPresents + poolRestantes) / Math.max(validSessions.length, 1)) * 100)
+  const cannotPassAttendance = maxFinalPct < catedra.porcentaje_asistencia
+
+  const statusLabel = cannotPassAttendance ? 'LIBRE (POR ASISTENCIA)' : academic.label
+  const statusColor = cannotPassAttendance ? 'text-danger' : academic.color
+
+  // Grades for display
   const p1 = grades.find(n => n.tipo === TIPO_NOTA.PARCIAL_1)?.valor || 0
   const p2 = grades.find(n => n.tipo === TIPO_NOTA.PARCIAL_2)?.valor || 0
   const rec = grades.find(n => n.tipo === TIPO_NOTA.RECUPERATORIO)?.valor || 0
   const maxP1 = Math.max(p1, rec)
   const maxP2 = Math.max(p2, rec)
-
-  // Predict if student can still pass attendance
-  const dictadasValidas = classes.filter(c => c.estado_clase === 'normal')
-  const restantes = validSessions.length - dictadasValidas.length
-  const maxFinalPct = Math.round(((totalPresents + restantes) / validSessions.length) * 100)
-  const cannotPassAttendance = maxFinalPct < catedra.porcentaje_asistencia
-
-  const hasAttendance = attendancePct >= (catedra.porcentaje_asistencia)
-  const canPromote = catedra.es_promocional && maxP1 >= (catedra.nota_promocion_minima) && maxP2 >= (catedra.nota_promocion_minima) && !cannotPassAttendance
-  const isRegular = maxP1 >= (catedra.nota_regularizacion) && maxP2 >= (catedra.nota_regularizacion) && !cannotPassAttendance
-  
-  const statusLabel = cannotPassAttendance ? 'LIBRE (POR ASISTENCIA)' : canPromote ? 'PROMOCIÓN' : isRegular ? 'REGULAR' : 'CON POSIBILIDAD DE REGULARIZAR'
-  const statusColor = cannotPassAttendance ? 'text-danger' : canPromote ? 'text-primary' : isRegular ? 'text-success' : 'text-warning'
 
   return (
     <div className="min-h-screen bg-background p-6 md:p-12 print:p-0">
@@ -185,7 +191,7 @@ export default function StudentCatedraDetailPage({ params }) {
                   <div className={`text-4xl font-black ${attendancePct >= catedra.porcentaje_asistencia ? 'text-success' : 'text-danger'}`}>
                      {attendancePct}%
                   </div>
-                  <div className="text-xs text-muted mt-2">{totalPresents} de {validClasses.length} clases</div>
+                  <div className="text-xs text-muted mt-2">{totalPresents} de {dictadasValidas.length} clases</div>
                </div>
                <div className="bg-background border border-border rounded-3xl p-6 flex flex-col items-center justify-center text-center">
                   <div className="text-[10px] font-black text-muted uppercase tracking-[0.2em] mb-2">Promedio Temp.</div>

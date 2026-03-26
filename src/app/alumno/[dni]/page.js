@@ -16,10 +16,12 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { TIPO_NOTA } from '@/lib/constants'
+import { calculateAcademicStatus } from '@/lib/academic-logic'
+import { useParams } from 'next/navigation'
 
-export default function StudentDashboardPage({ params }) {
-  const unwrappedParams = use(params)
-  const dni = unwrappedParams.dni
+export default function StudentDashboardPage() {
+  const params = useParams()
+  const dni = params.dni
   const [inscriptions, setInscriptions] = useState([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
@@ -51,25 +53,6 @@ export default function StudentDashboardPage({ params }) {
         .select('id, estado_clase')
         .eq('catedra_id', insc.catedra_id)
       
-      const DIAS_MAP = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 0 }
-      const start = new Date(insc.catedras.fecha_inicio + 'T12:00:00')
-      const end = new Date(insc.catedras.fecha_fin + 'T12:00:00')
-      const scheduledDays = (insc.catedras.dias_clase || []).map(d => DIAS_MAP[d])
-      
-      let projectedCount = 0
-      let cur = new Date(start)
-      while(cur <= end) {
-        if (scheduledDays.includes(cur.getDay())) {
-          // Check if this date was an exception in the DB
-          const fs = cur.toISOString().split('T')[0]
-          const dbClase = classes?.find(c => c.fecha === fs)
-          if (!dbClase || dbClase.estado_clase === 'normal') {
-            projectedCount++
-          }
-        }
-        cur.setDate(cur.getDate() + 1)
-      }
-
       // Fetch attendance
       const { data: attendances } = await supabase
         .from('asistencias')
@@ -77,43 +60,32 @@ export default function StudentDashboardPage({ params }) {
         .eq('inscripcion_id', insc.id)
         .eq('estado', 'presente')
       
-      const attendancePct = Math.round((attendances?.length / Math.max(projectedCount, 1)) * 100)
+      const attCount = attendances?.length || 0;
+      const filteredClases = classes?.filter(c => c.estado_clase === 'normal') || [];
+      const attendancePct = filteredClases.length > 0 ? Math.round((attCount / filteredClases.length) * 100) : 100;
 
-      // Fetch grades
+      // Fetch grades to generic object
       const { data: grades } = await supabase
         .from('notas')
         .select('*')
         .eq('inscripcion_id', insc.id)
       
-      const p1 = grades?.find(n => n.tipo === TIPO_NOTA.PARCIAL_1)?.valor || 0
-      const p2 = grades?.find(n => n.tipo === TIPO_NOTA.PARCIAL_2)?.valor || 0
-      const rec = grades?.find(n => n.tipo === TIPO_NOTA.RECUPERATORIO)?.valor || 0
+      const gradesObj = {};
+      grades?.forEach(n => {
+        gradesObj[n.tipo] = n.valor;
+      });
       
-      const maxP1 = Math.max(p1, rec)
-      const maxP2 = Math.max(p2, rec)
-
-      // Status Logic
-      const hasAttendance = attendancePct >= (insc.catedras.porcentaje_asistencia)
-      const canPromote = insc.catedras.es_promocional && maxP1 >= (insc.catedras.nota_promocion_minima) && maxP2 >= (insc.catedras.nota_promocion_minima) && hasAttendance
-      const isRegular = maxP1 >= (insc.catedras.nota_regularizacion) && maxP2 >= (insc.catedras.nota_regularizacion) && hasAttendance
-
-      let status = 'LIBRE'
-      let color = 'text-danger bg-danger/10 border-danger/20'
-      if (canPromote) {
-        status = 'PROMOCIÓN'
-        color = 'text-primary bg-primary/10 border-primary/20'
-      } else if (isRegular) {
-        status = 'REGULAR'
-        color = 'text-success bg-success/10 border-success/20'
-      }
+      const academic = calculateAcademicStatus(insc.catedras, gradesObj, attendancePct);
 
       return {
         ...insc,
         summary: {
           attendancePct,
-          status,
-          statusColor: color,
-          lastGrade: Math.max(p1, p2, rec) || '-'
+          status: academic.label,
+          statusColor: academic.color,
+          lastGrade: (grades && grades.length > 0) 
+            ? Math.max(...grades.map(n => parseFloat(n.valor) || 0)) 
+            : '-'
         }
       }
     }))
