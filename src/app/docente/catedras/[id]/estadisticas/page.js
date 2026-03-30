@@ -24,7 +24,8 @@ import {
   ResponsiveContainer,
   Cell,
   PieChart,
-  Pie
+  Pie,
+  ReferenceLine
 } from 'recharts'
 import { TIPO_NOTA } from '@/lib/constants'
 import { calculateAcademicStatus } from '@/lib/academic-logic'
@@ -72,15 +73,25 @@ export default function EstadisticasCatedraPage({ params }) {
       }
     })
 
-    // 2. Student Status Distribution
-    const statusCounts = { promocion: 0, regular: 0, libre: 0 }
+    // 2. Student Analytics & Status Distribution
+    const statusCounts = { promocion: 0, regular: 0, libre: 0, en_curso: 0 }
     const riskStudents = []
-    const attendanceThreshold = catedra?.porcentaje_asistencia || 80
+    const gradeChartData = []
     
+    const attendanceThreshold = catedra?.porcentaje_asistencia || 80
+    const totalClasses = (catedra?.cant_clases_teoria || 0) + (catedra?.cant_clases_practica || 0) || clases.length || 1
+    const classesRemaining = Math.max(0, totalClasses - validClases.length)
+
     alumnos.forEach(alumno => {
+      // Asistencia real
       const presents = (asistencias || []).filter(a => a.inscripcion_id === alumno.id && a.estado === 'presente' && validClases.some(vc => vc.id === a.clase_id)).length
       const attPct = (presents / Math.max(validClases.length, 1)) * 100
       
+      // Proyección: ¿Puede llegar al % solicitado?
+      const maxPossibleAtt = ((presents + classesRemaining) / totalClasses) * 100
+      const isPredictiveRisk = maxPossibleAtt < attendanceThreshold && classesRemaining > 0
+
+      // Notas
       const studentGrades = {}
       notas.filter(n => n.inscripcion_id === alumno.id).forEach(n => {
         studentGrades[n.tipo] = n.valor
@@ -88,22 +99,35 @@ export default function EstadisticasCatedraPage({ params }) {
       
       const status = calculateAcademicStatus(catedra, studentGrades, attPct)
 
+      // Totales para el Pie Chart
       if (status.key === 'PROMOCION') statusCounts.promocion++
       else if (status.key === 'REGULAR') statusCounts.regular++
+      else if (status.key === 'EN_CURSO') statusCounts.en_curso++
       else statusCounts.libre++
 
-      // Identificar riesgo
-      if (status.key === 'LIBRE' || attPct < attendanceThreshold) {
+      // Data para el gráfico de notas
+      gradeChartData.push({
+        name: alumno.apellido_estudiante,
+        p1: studentGrades.parcial_1 || studentGrades.P1 || 0,
+        p2: studentGrades.parcial_2 || studentGrades.P2 || 0
+      })
+
+      // Identificar riesgo (Incluye predictivo)
+      if (status.key === 'LIBRE' || attPct < attendanceThreshold || isPredictiveRisk) {
         riskStudents.push({
+          id: alumno.id,
           nombre: alumno.nombre_estudiante,
           apellido: alumno.apellido_estudiante,
           att: attPct,
-          status: status
+          maxAtt: maxPossibleAtt,
+          status: status,
+          isPredictive: isPredictiveRisk
         })
       }
     })
 
     const pieData = [
+      { name: 'En Curso', value: statusCounts.en_curso, color: '#94a3b8' },
       { name: 'Promoción', value: statusCounts.promocion, color: '#6366f1' },
       { name: 'Regular', value: statusCounts.regular, color: '#22c55e' },
       { name: 'Libre', value: statusCounts.libre, color: '#ef4444' }
@@ -113,6 +137,7 @@ export default function EstadisticasCatedraPage({ params }) {
       chartData, 
       pieData, 
       riskStudents,
+      gradeChartData,
       stats: { totalAlumnos: alumnos.length, totalClases: validClases.length, attendancePct: attendanceThreshold } 
     })
     setLoading(false)
@@ -174,11 +199,10 @@ export default function EstadisticasCatedraPage({ params }) {
           </div>
         </div>
 
-        {/* Status Distribution */}
         <div className="bg-surface border border-border rounded-3xl p-8 shadow-sm">
            <h2 className="text-lg font-bold text-foreground mb-6 flex items-center gap-2">
             <PieChartIcon className="w-5 h-5 text-accent" />
-            Distribución de Estado Académico
+            Distribución de Estado Académico (Pie)
           </h2>
           <div className="flex flex-col md:flex-row items-center justify-center gap-8">
              <div className="h-[250px] w-[250px]">
@@ -214,26 +238,56 @@ export default function EstadisticasCatedraPage({ params }) {
         </div>
       </div>
 
+      {/* Grades Performance Chart */}
+      <div className="mt-8 bg-surface border border-border rounded-3xl p-8 shadow-sm">
+        <h2 className="text-lg font-bold text-foreground mb-6 flex items-center gap-2">
+          <TrendingUp className="w-5 h-5 text-success" />
+          Rendimiento por Parciales (Comparativa)
+        </h2>
+        <div className="h-[400px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data?.gradeChartData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+              <XAxis dataKey="name" angle={-45} textAnchor="end" interval={0} tick={{ fontSize: 10 }} />
+              <YAxis domain={[0, 10]} ticks={[0,2,4,5,6,7,8,10]} />
+              <Tooltip />
+              <ReferenceLine y={5} label={{ position: 'right', value: 'REGULAR (5)', fill: '#22c55e', fontSize: 10, fontWeight: 'bold' }} stroke="#22c55e" strokeDasharray="3 3" />
+              <ReferenceLine y={7} label={{ position: 'right', value: 'PROMOCIÓN (7)', fill: '#6366f1', fontSize: 10, fontWeight: 'bold' }} stroke="#6366f1" strokeDasharray="3 3" />
+              <Bar dataKey="p1" name="Primer Parcial" fill="#6366f1" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="p2" name="Segundo Parcial" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <p className="text-[10px] text-muted mt-4 text-center">
+          * Las barras muestran el desempeño actual. Las líneas horizontales indican los umbrales para regularizar (5) y promocionar (7).
+        </p>
+      </div>
+
        {/* Critical Students / Risk */}
-       <div className="mt-12 bg-surface border border-border rounded-3xl p-8 shadow-sm">
+       <div className="mt-8 bg-surface border border-border rounded-3xl p-8 shadow-sm">
         <h2 className="text-lg font-bold text-foreground mb-6 flex items-center gap-2 text-danger">
           <AlertCircle className="w-5 h-5" />
-          Alumnos en situación crítica (Baja Asistencia o Libres)
+          Alumnos en situación crítica (Alertas Tempranas)
         </h2>
         
         {data?.riskStudents?.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {data.riskStudents.map((s, i) => (
-              <div key={i} className="p-4 bg-background border border-danger/20 rounded-2xl flex items-center justify-between">
-                <div>
+              <div key={s.id || i} className="p-4 bg-background border border-danger/20 rounded-2xl flex items-center justify-between">
+                <div className="space-y-1">
                   <div className="text-sm font-bold text-foreground">{s.apellido}, {s.nombre}</div>
-                  <div className="text-[10px] text-muted flex items-center gap-2">
-                    <span className={s.att < data.stats.attendancePct ? 'text-danger font-bold' : ''}>Asistencia: {Math.round(s.att)}%</span>
-                    <span>•</span>
-                    <span className={s.status.key === 'LIBRE' ? 'text-danger font-bold' : ''}>{s.status.label}</span>
+                  <div className="text-[10px] text-muted flex flex-col gap-1">
+                    <span className={s.att < data.stats.attendancePct ? 'text-danger font-bold' : ''}>Asistencia Actual: {Math.round(s.att)}%</span>
+                    <span className={s.status.key === 'LIBRE' ? 'text-danger font-bold' : ''}>Estado: {s.status.label}</span>
                   </div>
+                  {s.isPredictive && (
+                    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-danger/10 text-[9px] font-black text-danger uppercase animate-pulse">
+                      <AlertCircle className="w-3 h-3" />
+                      Asistencia Obligatoria
+                    </div>
+                  )}
                 </div>
-                <div className={`w-2 h-2 rounded-full ${s.status.key === 'LIBRE' || s.att < data.stats.attendancePct ? 'bg-danger animate-pulse' : 'bg-warning'}`} />
+                <div className={`w-3 h-3 rounded-full ${s.status.key === 'LIBRE' || s.isPredictive ? 'bg-danger animate-ping' : 'bg-warning'}`} />
               </div>
             ))}
           </div>
