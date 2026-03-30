@@ -15,7 +15,10 @@ import { notFound } from 'next/navigation'
 export default async function CatedraDetailPage({ params }) {
   const { id } = await params
   const supabase = await createClient()
-  
+  const { data: { user } } = await supabase.auth.getUser()
+  const userEmail = user?.email
+  const legacyId = '3cd85ad4-bd2a-4639-9c88-bb22bc63ed88'
+
   const { data: catedra } = await supabase
     .from('catedras')
     .select('*')
@@ -23,6 +26,15 @@ export default async function CatedraDetailPage({ params }) {
     .single()
 
   if (!catedra) {
+    notFound()
+  }
+
+  // Verificar propiedad: El docente_id debe coincidir con el usuario actual,
+  // A MENOS que sea el usuario de pruebas y la cátedra sea del ID legacy.
+  const isOwner = catedra.docente_id === user?.id
+  const isLegacyAuthorized = userEmail === '1000ideasdigitales@gmail.com' && catedra.docente_id === legacyId
+
+  if (!isOwner && !isLegacyAuthorized) {
     notFound()
   }
 

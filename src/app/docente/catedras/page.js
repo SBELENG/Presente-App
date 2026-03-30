@@ -6,24 +6,28 @@ import { Plus, ArrowRight, BookOpen } from 'lucide-react'
 export default async function CatedrasPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  const cookieStore = await cookies()
-  const isDevBypass = cookieStore.get('dev_bypass')?.value === 'true'
   
-  let docenteId = user?.id
-  if (!docenteId && isDevBypass) {
-    docenteId = '3cd85ad4-bd2a-4639-9c88-bb22bc63ed88'
+  const userEmail = user?.email
+  let query = supabase.from('catedras').select('*').order('created_at', { ascending: false })
+  
+  if (user?.id) {
+    // Si es el mail de pruebas, también permitimos ver la data del legacy ID (dev bypass previo)
+    if (userEmail === '1000ideasdigitales@gmail.com') {
+      const legacyId = '3cd85ad4-bd2a-4639-9c88-bb22bc63ed88'
+      query = query.or(`docente_id.eq.${user.id},docente_id.eq.${legacyId}`)
+    } else {
+      query = query.eq('docente_id', user.id)
+    }
+  } else {
+    // Si no hay usuario ni bypass, redirigir es tarea del middleware,
+    // pero aquí devolvemos vacío por seguridad.
+    return <div className="p-20 text-center text-muted">No autenticado. Por favor ingresá de nuevo.</div>
   }
 
   let catedras = []
   try {
-    if (docenteId) {
-      const { data } = await supabase
-        .from('catedras')
-        .select('*')
-        .eq('docente_id', docenteId)
-        .order('created_at', { ascending: false })
-      if (data) catedras = data
-    }
+    const { data } = await query
+    if (data) catedras = data
   } catch {
     // Tables may not exist yet
   }

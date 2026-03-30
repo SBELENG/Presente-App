@@ -12,14 +12,35 @@ export default async function DocenteDashboard() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
+  // Handle demo bypass session
+  const { cookies } = await import('next/headers')
+  const cookieStore = await cookies()
+  const isDemoBypass = cookieStore.get('demo_bypass')?.value === 'true'
+  const demoEmail = cookieStore.get('demo_user')?.value
+
+  // Use either the real user ID or the demo email as an identifier
+  const docenteIdentifier = user?.id || (isDemoBypass ? demoEmail : null)
+
+  // Redirect to login if absolutely no session
+  if (!docenteIdentifier) {
+    const { redirect } = await import('next/navigation')
+    redirect('/login')
+  }
+
+  // Special case for the legacy email to see all test data
+  const isLegacyUser = docenteIdentifier === '1000ideasdigitales@gmail.com'
+
   // Try to fetch cátedras (will be empty if tables don't exist yet)
   let catedras = []
   try {
-    const { data } = await supabase
-      .from('catedras')
-      .select('*')
-      .eq('docente_id', user?.id)
-      .order('created_at', { ascending: false })
+    const query = supabase.from('catedras').select('*')
+    
+    // Only filter by docente_id if it's NOT the legacy user who needs to see everything
+    if (!isLegacyUser) {
+      query.eq('docente_id', docenteIdentifier)
+    }
+
+    const { data } = await query.order('created_at', { ascending: false })
     if (data) catedras = data
   } catch {
     // Tables may not exist yet

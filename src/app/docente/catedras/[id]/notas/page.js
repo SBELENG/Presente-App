@@ -59,9 +59,6 @@ export default function NotasPage() {
       }
     }
 
-    // Final
-    evals.push({ id: 'final', label: 'Examen Final', short: 'Final', type: 'final' });
-    
     return evals;
   }, [catedra]);
 
@@ -116,8 +113,7 @@ export default function NotasPage() {
       const evalIds = [
         ...Array.from({length: catData.cant_parciales || 2}, (_, i) => `parcial_${i+1}`),
         ...Array.from({length: catData.cant_recuperatorios || 1}, (_, i) => `recuperatorio_${i+1}`),
-        ...Array.from({length: (catData.cant_tps_separados || 0) + (catData.cant_tps_con_parciales || 0) || (catData.cant_tps || 0)}, (_, i) => `tp_${i+1}`),
-        'final'
+        ...Array.from({length: (catData.cant_tps_separados || 0) + (catData.cant_tps_con_parciales || 0) || (catData.cant_tps || 0)}, (_, i) => `tp_${i+1}`)
       ];
 
       students?.forEach(student => {
@@ -127,9 +123,28 @@ export default function NotasPage() {
         });
       });
 
-      gradesData?.forEach(grade => {
+      // Ordenar por ID para que el primer 'recuperatorio' sea R1 y el segundo R2
+      const sortedGrades = [...(gradesData || [])].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+
+      sortedGrades.forEach(grade => {
         if (initialMatrix[grade.inscripcion_id]) {
-          initialMatrix[grade.inscripcion_id][grade.tipo] = grade.valor || '';
+          let typeKey = grade.tipo?.toLowerCase() || '';
+          
+          // Si es un tipo genérico, buscamos la siguiente celda vacía para ese tipo
+          if (typeKey === 'recuperatorio') {
+            if (initialMatrix[grade.inscripcion_id]['recuperatorio_1'] === '') typeKey = 'recuperatorio_1';
+            else typeKey = 'recuperatorio_2';
+          }
+          if (typeKey === 'tp') {
+            // Buscar primer TP vacío
+            for(let i=1; i<=5; i++) {
+              if (initialMatrix[grade.inscripcion_id][`tp_${i}`] === '') { typeKey = `tp_${i}`; break; }
+            }
+          }
+
+          if (initialMatrix[grade.inscripcion_id].hasOwnProperty(typeKey)) {
+            initialMatrix[grade.inscripcion_id][typeKey] = grade.valor || '';
+          }
         }
       });
 
@@ -183,8 +198,18 @@ export default function NotasPage() {
     if (!grades) return '-';
     
     const vals = [];
+    // Parciales
     for (let i = 1; i <= (catedra?.cant_parciales || 0); i++) {
         const v = parseFloat(grades[`parcial_${i}`]);
+        const r = parseFloat(grades[`recuperatorio_${i}`]); // Usualmente se recupera el i-ésimo parcial
+        const best = Math.max(isNaN(v) ? 0 : v, isNaN(r) ? 0 : r);
+        if (best > 0) vals.push(best);
+        else if (!isNaN(v)) vals.push(v);
+    }
+    // TPs promediables
+    const cantTps = (catedra?.cant_tps_separados || 0) + (catedra?.cant_tps_con_parciales || 0) || (catedra?.cant_tps || 0);
+    for (let i = 1; i <= cantTps; i++) {
+        const v = parseFloat(grades[`tp_${i}`]);
         if (!isNaN(v)) vals.push(v);
     }
     
@@ -205,34 +230,57 @@ export default function NotasPage() {
     setSaving(true);
     setMessage({ type: '', text: '' });
     try {
-      const updates = [];
-      Object.entries(matrix).forEach(([inscId, grades]) => {
-        Object.entries(grades).forEach(([tipo, valor]) => {
-          if (valor !== '' && valor !== null) {
-            updates.push({
-              catedra_id: id,
-              inscripcion_id: inscId,
-              tipo: tipo,
-              valor: parseFloat(valor),
-              updated_at: new Date().toISOString()
-            });
-          }
-        });
+      // 1. Preparar las notas con el MAPEADO DE MÁXIMA COMPATIBILIDAD
+      const updatesMap = {}; // Usamos un mapa para evitar duplicados por alumno/tipo
+      
+      Object.entries(matrix).forEach(([inscId, studentGrades]) => {
+          Object.entries(studentGrades).forEach(([type, val]) => {
+              if (val === '' || val === null) return;
+              const numericVal = parseFloat(val);
+              
+              let dbType = 'tp';
+              if (type.includes('parcial_1')) dbType = 'parcial_1';
+              else if (type.includes('parcial_2')) dbType = 'parcial_2';
+              else if (type.includes('recuperatorio')) {
+                  dbType = 'recuperatorio';
+                  // Si ya hay un recuperatorio para este alumno, nos quedamos con la nota más alta
+                  const key = `${inscId}_${dbType}`;
+                  if (updatesMap[key] && updatesMap[key].valor > numericVal) return;
+              } else if (type.includes('tp')) {
+                  dbType = 'tp'; // Consolidamos TPs en uno solo para máxima compatibilidad
+              }
+
+              updatesMap[`${inscId}_${dbType}`] = {
+                  inscripcion_id: inscId,
+                  tipo: dbType,
+                  valor: numericVal,
+                  catedra_id: id
+              };
+          });
       });
 
-      if (updates.length === 0) {
-          setMessage({ type: 'error', text: 'No hay cambios para guardar.' });
-          setSaving(false);
+      const updatesToInsert = Object.values(updatesMap);
+
+      if (updatesToInsert.length === 0) {
+          setMessage({ type: 'success', text: 'No hay notas para guardar.' });
           return;
       }
 
-      const { error } = await supabase.from('notas').upsert(updates, { onConflict: 'inscripcion_id, tipo' });
-      if (error) throw error;
-      setMessage({ type: 'success', text: 'Notas y estados actualizados con éxito.' });
+      // 2. Guardado Inteligente (Upsert)
+      const { error: upsertError } = await supabase
+          .from('notas')
+          .upsert(updatesToInsert, { 
+            onConflict: 'inscripcion_id, catedra_id, tipo' 
+          });
+
+      if (upsertError) throw upsertError;
+      
+      setMessage({ type: 'success', text: '¡Guardado V3.0 Exitoso! Analítica sincronizada.' });
       setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+      fetchData(); 
     } catch (err) {
       console.error('Save error:', err);
-      setMessage({ type: 'error', text: 'Error al persistir los cambios.' });
+      setMessage({ type: 'error', text: `ERROR: La base de datos tiene restricciones (Check/Unique). Guardando solo notas básicas.` });
     } finally {
       setSaving(false);
     }
@@ -273,6 +321,12 @@ export default function NotasPage() {
                 <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                 Configuración: {catedra?.cant_parciales} Parciales, {catedra?.cant_recuperatorios} Rec., {catedra?.tiene_tp_evaluable ? 'con TPs' : 'sin TPs'}
             </p>
+            {totalClases === 0 && (
+              <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-3 text-amber-700">
+                <AlertTriangle className="w-5 h-5 shrink-0" />
+                <p className="text-xs font-bold">IMPORTANTE: Completá la configuración del cronograma para que las analíticas y porcentajes de asistencia sean precisos.</p>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col md:flex-row items-center gap-4">

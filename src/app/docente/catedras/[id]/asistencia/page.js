@@ -19,7 +19,8 @@ import {
   Pencil,
   Shield,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Plus
 } from 'lucide-react'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
@@ -111,6 +112,8 @@ function ExceptionsPanel({ open, onClose, allFechas, clases, catedraId, onSaved 
     for (const [fechaStr, change] of entries) {
       const existing = clases.find(c => c.fecha === fechaStr)
       if (existing) {
+        // Si el usuario vuelve a poner "normal" una excepción, y no era día de clase, 
+        // tal vez sea mejor borrarla, pero por ahora solo actualizamos.
         const { error: err } = await supabase.from('clases').update({
           estado_clase: change.estado_clase,
           ...(change.descripcion !== undefined ? { tema: change.descripcion } : {})
@@ -178,7 +181,7 @@ function ExceptionsPanel({ open, onClose, allFechas, clases, catedraId, onSaved 
         <div className="px-6 py-3 bg-info/5 border-b border-border shrink-0">
           <p className="text-[11px] text-muted leading-relaxed">
             <Shield className="w-3 h-3 inline mr-1 text-info" />
-            Las fechas marcadas como excepción (feriado, paro, etc.) <strong>no cuentan</strong> en el porcentaje de asistencia. Podés marcarlas antes o después de que ocurran.
+            Las fechas marcadas como excepción (feriado, paro, etc.) <strong>no cuentan</strong> en el porcentaje de asistencia. Puede marcarlas antes o después de que ocurran.
           </p>
         </div>
 
@@ -276,9 +279,17 @@ function ExceptionsPanel({ open, onClose, allFechas, clases, catedraId, onSaved 
   )
 }
 
-function getComisionAlumno(apellido, comisiones) {
+function getComisionAlumno(alumno, comisiones) {
   if (!comisiones?.length) return null
-  const primera = (apellido || '').trim()[0]?.toUpperCase()
+  
+  // 1. Prioridad: Comisión asignada manualmente
+  if (alumno.comision_manual) {
+    const manual = comisiones.find(c => c.nombre === alumno.comision_manual)
+    if (manual) return manual
+  }
+
+  // 2. Fallback: Lógica de letras del apellido
+  const primera = (alumno.apellido_estudiante || '').trim()[0]?.toUpperCase()
   if (!primera) return null
   for (const com of comisiones) {
     if (!com.desde || !com.hasta) continue
@@ -321,7 +332,7 @@ function Cell({ status, isException, isFuture, excState }) {
 
 // ─── Section Table ─────────────────────────────────────────────────────────────
 
-function AttendanceTable({ label, fechas, alumnos, asistencias, clases, requerido, colorClass }) {
+function AttendanceTable({ label, fechas, alumnos, asistencias, clases, requerido, colorClass, cantComisiones }) {
   const getClase = (fecha) => {
     const fs = fecha.toISOString().split('T')[0]
     return clases.find(c => c.fecha === fs)
@@ -339,9 +350,11 @@ function AttendanceTable({ label, fechas, alumnos, asistencias, clases, requerid
   const validasProyectadas = fechas.filter(f => !isExc(f))
 
   const calcPct = (alumnoId) => {
-    if (validasProyectadas.length === 0) return null
-    const p = tomadas.filter(f => !isExc(f) && getStatus(alumnoId, f) === 'presente').length
-    return Math.round((p / validasProyectadas.length) * 100)
+    // MATEMÁTICA ESTRICTA: (Asistencias Totales) / (Fechas Totales - Feriados)
+    const validasTotal = fechas.filter(f => !isExc(f)).length
+    if (validasTotal === 0) return null
+    const presentesCount = asistencias.filter(as => as.inscripcion_id === alumnoId && as.estado === 'presente').length
+    return Math.round((presentesCount / validasTotal) * 100)
   }
 
   if (!fechas.length) return null
@@ -391,8 +404,11 @@ function AttendanceTable({ label, fechas, alumnos, asistencias, clases, requerid
           {alumnos.map((a) => {
             const pct = calcPct(a.id)
             const pctOk = pct === null || pct >= requerido
+            
+            // Cantidades para el contador P / F
+            const validasTomadasCount = tomadas.filter(f => !isExc(f)).length
             const presentes = tomadas.filter(f => !isExc(f) && getStatus(a.id, f) === 'presente').length
-            const faltas = tomadas.filter(f => !isExc(f) && getStatus(a.id, f) === 'ausente').length
+            const faltas = validasTomadasCount - presentes // Todo lo que no es presente, es falta en una clase dictada
 
             // Cálculo predictivo
             const validasProyectadas = fechas.filter(f => !isExc(f)).length
@@ -409,11 +425,26 @@ function AttendanceTable({ label, fechas, alumnos, asistencias, clases, requerid
                     <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-[9px] font-bold text-primary uppercase shrink-0">
                       {a.apellido_estudiante?.[0]}{a.nombre_estudiante?.[0]}
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-bold text-foreground truncate max-w-[110px]">
-                        {a.apellido_estudiante}, {a.nombre_estudiante}
-                      </p>
-                      <p className="text-[9px] text-muted font-mono">{a.dni_estudiante}</p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1">
+                        <p className="text-[11px] font-bold text-foreground truncate max-w-full">
+                          {a.apellido_estudiante}, {a.nombre_estudiante}
+                        </p>
+                        <select 
+                          value={a.comision_manual ? a.comision_manual.replace('Comisión ', '') : ''}
+                          onChange={async (e) => {
+                            const val = e.target.value
+                            const supabase = createClient()
+                            const { error } = await supabase.from('inscripciones').update({ comision_manual: val ? `Comisión ${val}` : null }).eq('id', a.id)
+                            if (!error) window.location.reload()
+                          }}
+                          className="bg-primary/10 border border-primary/30 text-[10px] font-black text-primary rounded-lg px-2 py-0.5 shadow-sm outline-none cursor-pointer hover:bg-primary hover:text-white transition-all ml-auto"
+                        >
+                          <option value="">Com.</option>
+                          {[...Array(cantComisiones || 5)].map((_, i) => <option key={i+1} value={(i+1).toString()}>{i+1}</option>)}
+                        </select>
+                      </div>
+                      <p className="text-[9px] text-muted font-mono whitespace-nowrap overflow-hidden text-ellipsis mr-2">DNI: {a.dni_estudiante}</p>
                     </div>
                   </div>
                 </td>
@@ -489,6 +520,13 @@ export default function AsistenciaDetallePage({ params }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [activeTab, setActiveTab] = useState(0)
   const [showExceptions, setShowExceptions] = useState(false)
+  const [showManualAttendance, setShowManualAttendance] = useState(false)
+  const [manualAttendance, setManualAttendance] = useState({
+    alumnoId: '',
+    fecha: '',
+    estado: 'presente'
+  })
+  const [savingManual, setSavingManual] = useState(false)
 
   const supabase = createClient()
 
@@ -511,6 +549,63 @@ export default function AsistenciaDetallePage({ params }) {
       setAsistencias(asist || [])
     }
     setLoading(false)
+  }
+
+  const handleManualAttendanceSubmit = async (e) => {
+    e.preventDefault()
+    if (!manualAttendance.alumnoId || !manualAttendance.fecha) {
+      alert('Seleccioná un alumno y una fecha.')
+      return
+    }
+
+    setSavingManual(true)
+    const fechaStr = manualAttendance.fecha
+    
+    // 1. Get or create the class for that date
+    let claseId
+    const existingClase = clases.find(c => c.fecha === fechaStr)
+    
+    if (existingClase) {
+      claseId = existingClase.id
+    } else {
+      const { data: newClase, error: clsErr } = await supabase
+        .from('clases')
+        .insert({
+          catedra_id: id,
+          fecha: fechaStr,
+          tipo: 'teorico_practica',
+          estado_clase: 'normal',
+          tema: 'Registrada manualmente'
+        })
+        .select()
+        .single()
+      
+      if (clsErr) {
+        alert(`Error al crear clase: ${clsErr.message}`)
+        setSavingManual(false)
+        return
+      }
+      claseId = newClase.id
+    }
+
+    // 2. Insert/Upsert attendance
+    const { error: asistErr } = await supabase
+      .from('asistencias')
+      .upsert({
+        clase_id: claseId,
+        inscripcion_id: manualAttendance.alumnoId,
+        estado: manualAttendance.estado,
+        hora_registro: new Date().toISOString()
+      }, { onConflict: 'clase_id, inscripcion_id' })
+
+    if (asistErr) {
+      alert(`Error al registrar asistencia: ${asistErr.message}`)
+    } else {
+      await fetchData()
+      setShowManualAttendance(false)
+      setManualAttendance({ ...manualAttendance, alumnoId: '' })
+    }
+    setSavingManual(false)
   }
 
   // ── Dates from config ──────────────────────────────────────────────────────
@@ -539,13 +634,21 @@ export default function AsistenciaDetallePage({ params }) {
     }
     
     // Defensa absoluta: Agregar fechas de clases reales que Next.js caché pudo haber forzado un día fuera de calendario
+    // Pero SOLO si tienen asistencias o son estado normal (no feriados ruidosos en días off)
     clases.forEach(c => {
       const dbDate = new Date(c.fecha + 'T12:00:00')
-      if (esTeo && c.tipo.includes('teorico') && !fT.some(fecha => fecha.getTime() === dbDate.getTime())) {
-        fT.push(dbDate)
-      }
-      if (esPrac && c.tipo.includes('practic') && !fP.some(fecha => fecha.getTime() === dbDate.getTime())) {
-        fP.push(dbDate)
+      const hasAttendance = asistencias.some(a => a.clase_id === c.id)
+      const isManualNormal = c.estado_clase === 'normal'
+      
+      const isRelevant = hasAttendance || isManualNormal
+
+      if (isRelevant) {
+        if (esTeo && c.tipo.includes('teorico') && !fT.some(fecha => fecha.getTime() === dbDate.getTime())) {
+          fT.push(dbDate)
+        }
+        if (esPrac && c.tipo.includes('practic') && !fP.some(fecha => fecha.getTime() === dbDate.getTime())) {
+          fP.push(dbDate)
+        }
       }
     })
     fT.sort((a, b) => a - b)
@@ -553,7 +656,7 @@ export default function AsistenciaDetallePage({ params }) {
 
     const split = fT.length > 0 && fP.length > 0
     return { fechasTeoria: fT, fechasPractica: fP, hasSplit: split, diasPracticaGlobal: diasPractica, esTeo, esPrac }
-  }, [catedra, clases])
+  }, [catedra, clases, asistencias])
 
   // ── Filter alumnos ─────────────────────────────────────────────────────────
 
@@ -636,7 +739,7 @@ export default function AsistenciaDetallePage({ params }) {
         icon: BookOpen,
         fechas: fechasTeoria,
         alumnos: filteredAlumnos,
-        requerido: catedra?.asistencia_teoria || catedra?.porcentaje_asistencia || 80,
+        requerido: catedra?.porcentaje_asistencia || catedra?.asistencia_teoria || 80,
         colorClass: 'text-primary',
       })
     }
@@ -649,7 +752,7 @@ export default function AsistenciaDetallePage({ params }) {
       comisiones.forEach((com, i) => {
         const comFechas = getFechasForComision(i)
         const comAlumnos = filteredAlumnos.filter(a =>
-          getComisionAlumno(a.apellido_estudiante, comisiones) === com
+          getComisionAlumno(a, comisiones) === com
         )
         result.push({
           id: `practica_${i}`,
@@ -657,12 +760,12 @@ export default function AsistenciaDetallePage({ params }) {
           icon: FlaskConical,
           fechas: comFechas,
           alumnos: comAlumnos,
-          requerido: catedra?.asistencia_practica || catedra?.porcentaje_asistencia || 80,
+          requerido: catedra?.porcentaje_asistencia || catedra?.asistencia_practica || 80,
           colorClass: 'text-accent',
           comColor: com.color,
         })
       })
-      const sinCom = filteredAlumnos.filter(a => !getComisionAlumno(a.apellido_estudiante, comisiones))
+      const sinCom = filteredAlumnos.filter(a => !getComisionAlumno(a, comisiones))
       if (sinCom.length > 0) {
         result.push({
           id: 'practica_otros',
@@ -670,14 +773,14 @@ export default function AsistenciaDetallePage({ params }) {
           icon: FlaskConical,
           fechas: fechasPractica,
           alumnos: sinCom,
-          requerido: catedra?.asistencia_practica || catedra?.porcentaje_asistencia || 80,
+          requerido: catedra?.porcentaje_asistencia || catedra?.asistencia_practica || 80,
           colorClass: 'text-accent',
         })
       }
     } else if (esPrac && comisiones.length > 0) {
       comisiones.forEach((com, i) => {
         const comAlumnos = filteredAlumnos.filter(a =>
-          getComisionAlumno(a.apellido_estudiante, comisiones) === com
+          getComisionAlumno(a, comisiones) === com
         )
         const diasCom = (com.dias && com.dias.length > 0) ? com.dias : diasPracticaGlobal
         const comFechas = generarFechas(catedra?.fecha_inicio, catedra?.fecha_fin, diasCom)
@@ -688,7 +791,7 @@ export default function AsistenciaDetallePage({ params }) {
           icon: FlaskConical,
           fechas: comFechas,
           alumnos: comAlumnos,
-          requerido: catedra?.asistencia_practica || catedra?.porcentaje_asistencia || 80,
+          requerido: catedra?.porcentaje_asistencia || catedra?.asistencia_practica || 80,
           colorClass: 'text-accent',
           comColor: com.color,
         })
@@ -701,7 +804,7 @@ export default function AsistenciaDetallePage({ params }) {
           icon: FlaskConical,
           fechas: fechasPractica,
           alumnos: sinCom,
-          requerido: catedra?.asistencia_practica || catedra?.porcentaje_asistencia || 80,
+          requerido: catedra?.porcentaje_asistencia || catedra?.asistencia_practica || 80,
           colorClass: 'text-accent',
         })
       }
@@ -712,7 +815,7 @@ export default function AsistenciaDetallePage({ params }) {
         icon: FlaskConical,
         fechas: fechasPractica,
         alumnos: filteredAlumnos,
-        requerido: catedra?.asistencia_practica || catedra?.porcentaje_asistencia || 80,
+        requerido: catedra?.porcentaje_asistencia || catedra?.asistencia_practica || 80,
         colorClass: 'text-accent',
       })
     }
@@ -753,6 +856,11 @@ export default function AsistenciaDetallePage({ params }) {
     tabs.forEach(t => {
       t.fechas.forEach(f => {
         const k = f.toISOString().split('T')[0]
+        
+        // FILTRO DEFINITIVO: No permitir domingos en el registro de asistencia/excepciones
+        const diaNum = f.getDay()
+        if (diaNum === 0) return 
+
         if (!map.has(k)) map.set(k, f)
       })
     })
@@ -806,6 +914,13 @@ export default function AsistenciaDetallePage({ params }) {
               {exceptionCount > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-warning text-background text-[9px] font-black rounded-full flex items-center justify-center">{exceptionCount}</span>
               )}
+            </button>
+            <button 
+              onClick={() => setShowManualAttendance(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-surface border border-border rounded-xl text-sm font-semibold hover:border-primary/50 transition-all"
+            >
+              <Pencil className="w-4 h-4 text-primary" />
+              Ingreso Manual
             </button>
             <button onClick={exportToExcel} className="flex items-center gap-2 px-4 py-2 bg-surface border border-border rounded-xl text-sm font-semibold hover:border-primary/50 transition-all">
               <Download className="w-4 h-4 text-primary" /> Exportar
@@ -897,6 +1012,7 @@ export default function AsistenciaDetallePage({ params }) {
               clases={clases}
               requerido={currentTab.requerido}
               colorClass={currentTab.colorClass}
+              cantComisiones={catedra?.comisiones_division?.length || 5}
             />
           </div>
         )}
@@ -930,8 +1046,103 @@ export default function AsistenciaDetallePage({ params }) {
         </button>
       </div>
       
+      {/* Manual Attendance Entry Modal */}
+      {showManualAttendance && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-surface border border-border w-full max-w-md rounded-3xl shadow-2xl animate-scale-in">
+            <div className="p-6 border-b border-border flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold">Ingreso Manual de Asistencia</h2>
+                <p className="text-xs text-muted mt-1">Registrá la presencia de un alumno en una fecha específica.</p>
+              </div>
+              <button 
+                onClick={() => setShowManualAttendance(false)}
+                className="w-8 h-8 rounded-full bg-surface-hover flex items-center justify-center"
+              >
+                <XIcon className="w-4 h-4 text-muted" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleManualAttendanceSubmit} className="p-6 space-y-5">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-muted uppercase">Alumno</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                  <select
+                    required
+                    value={manualAttendance.alumnoId}
+                    onChange={e => setManualAttendance({...manualAttendance, alumnoId: e.target.value})}
+                    className="w-full pl-10 pr-4 py-2.5 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/50 outline-none appearance-none text-sm"
+                  >
+                    <option value="">Seleccioná un alumno...</option>
+                    {alumnos.map(a => (
+                      <option key={a.id} value={a.id}>{a.apellido_estudiante}, {a.nombre_estudiante} ({a.dni_estudiante})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-muted uppercase">Fecha de la Clase</label>
+                <select
+                  required
+                  value={manualAttendance.fecha}
+                  onChange={e => setManualAttendance({...manualAttendance, fecha: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/50 outline-none text-sm"
+                >
+                  <option value="">Seleccioná una fecha...</option>
+                  {allFechas.map((f, i) => (
+                    <option key={i} value={f.toISOString().split('T')[0]}>
+                      {f.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-muted uppercase">Estado</label>
+                <div className="flex gap-2">
+                  {['presente', 'ausente'].map(est => (
+                    <button
+                      key={est}
+                      type="button"
+                      onClick={() => setManualAttendance({...manualAttendance, estado: est})}
+                      className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all capitalize ${
+                        manualAttendance.estado === est 
+                          ? est === 'presente' ? 'bg-success/10 border-success text-success' : 'bg-danger/10 border-danger text-danger'
+                          : 'border-border text-muted hover:border-border-hover'
+                      }`}
+                    >
+                      {est}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowManualAttendance(false)}
+                  className="flex-1 py-3 bg-surface border border-border rounded-2xl font-bold text-sm hover:bg-surface-hover transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingManual}
+                  className="flex-1 py-3 bg-primary text-white rounded-2xl font-bold text-sm shadow-xl shadow-primary/25 flex items-center justify-center gap-2"
+                >
+                  {savingManual ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Guardar Asistencia
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <div className="mt-8 text-center text-[10px] text-muted/30 font-mono uppercase tracking-[0.2em] pb-12">
-        Build: 2026-03-22-2012 · Cumulative Logic Cleanup
+        Build: 2026-03-26-1230 · Manual Attendance Entry Active
       </div>
     </div>
   )

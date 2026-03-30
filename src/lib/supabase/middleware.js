@@ -33,11 +33,13 @@ export async function updateSession(request) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isDevBypass = request.cookies.get('dev_bypass')?.value === 'true'
+  // Demo Bypass Check
+  const isDemoBypass = request.cookies.get('demo_bypass')?.value === 'true'
 
   // Protected routes - redirect to login if not authenticated
   if (
-    !user && !isDevBypass &&
+    !user && 
+    !isDemoBypass &&
     (request.nextUrl.pathname.startsWith('/docente') ||
       request.nextUrl.pathname.startsWith('/estudiante'))
   ) {

@@ -185,14 +185,9 @@ export default function NuevaCatedraPage() {
     const { data: { user } } = await supabase.auth.getUser()
     
     let docenteId = user?.id
-    
-    // Bypass para testing si no hay sesión activa
-    if (!docenteId && document.cookie.includes('dev_bypass=true')) {
-      docenteId = '3cd85ad4-bd2a-4639-9c88-bb22bc63ed88' // ID del docente creado en Supabase
-    }
 
     if (!docenteId) { 
-      setError('No estás autenticado. Por favor, ingresá por el login o Modo Invitado.'); 
+      setError('No estás autenticado. Por favor, ingresá por el login.'); 
       setLoading(false); 
       return; 
     }
@@ -646,7 +641,10 @@ export default function NuevaCatedraPage() {
               </div>
             )}
 
-            <div><label className="block text-[11px] font-black text-muted uppercase mb-2 tracking-widest">Nota mínima para regularizar</label><input type="number" value={form.nota_regularizacion} onChange={e=>updateForm('nota_regularizacion',parseFloat(e.target.value))} className="w-full px-6 py-4 bg-background border-2 border-border focus:border-primary rounded-3xl outline-none font-black text-lg text-primary shadow-inner" /></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div><label className="block text-[11px] font-black text-muted uppercase mb-2 tracking-widest">Nota mínima para regularizar</label><input type="number" value={form.nota_regularizacion} onChange={e=>updateForm('nota_regularizacion',parseFloat(e.target.value))} className="w-full px-6 py-4 bg-background border-2 border-border focus:border-primary rounded-3xl outline-none font-black text-lg text-primary shadow-inner" /></div>
+              <div><label className="block text-[11px] font-black text-muted uppercase mb-2 tracking-widest">Asistencia requerida (%)</label><input type="number" value={form.porcentaje_asistencia} onChange={e=>updateForm('porcentaje_asistencia',parseInt(e.target.value))} className="w-full px-6 py-4 bg-background border-2 border-border focus:border-primary rounded-3xl outline-none font-black text-lg text-primary shadow-inner" placeholder="80" /></div>
+            </div>
           </div>
         )}
 

@@ -27,6 +27,7 @@ import {
   Pie
 } from 'recharts'
 import { TIPO_NOTA } from '@/lib/constants'
+import { calculateAcademicStatus } from '@/lib/academic-logic'
 
 export default function EstadisticasCatedraPage({ params }) {
   const unwrappedParams = use(params)
@@ -42,26 +43,30 @@ export default function EstadisticasCatedraPage({ params }) {
   const fetchData = async () => {
     setLoading(true)
     
-    const [catRes, classesRes, studentsRes, attendanceRes, gradesRes] = await Promise.all([
+    const [catRes, classesRes, studentsRes, gradesRes] = await Promise.all([
       supabase.from('catedras').select('*').eq('id', id).single(),
       supabase.from('clases').select('*').eq('catedra_id', id).order('fecha', { ascending: true }),
       supabase.from('inscripciones').select('*').eq('catedra_id', id),
-      supabase.from('asistencias').select('*').in('clase_id', (await supabase.from('clases').select('id').eq('catedra_id', id)).data?.map(c => c.id) || []),
       supabase.from('notas').select('*').eq('catedra_id', id)
     ])
 
     const catedra = catRes.data
     const clases = classesRes.data || []
     const alumnos = studentsRes.data || []
-    const asistencias = attendanceRes.data || []
     const notas = gradesRes.data || []
+
+    // Fetch asistencias using class IDs
+    const classIds = clases.map(c => c.id)
+    const { data: asistencias } = classIds.length > 0 
+      ? await supabase.from('asistencias').select('*').in('clase_id', classIds)
+      : { data: [] }
 
     // 1. Attendance by Topic/Date Chart
     const validClases = clases.filter(c => c.estado_clase === 'normal')
     const chartData = validClases.map(c => {
-      const presentes = asistencias.filter(a => a.clase_id === c.id && a.estado === 'presente').length
+      const presentes = (asistencias || []).filter(a => a.clase_id === c.id && a.estado === 'presente').length
       return {
-        name: c.tema || new Date(c.fecha).toLocaleDateString(),
+        name: c.tema || new Date(c.fecha + 'T12:00:00').toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit'}),
         p: Math.round((presentes / Math.max(alumnos.length, 1)) * 100),
         count: presentes
       }
@@ -69,28 +74,33 @@ export default function EstadisticasCatedraPage({ params }) {
 
     // 2. Student Status Distribution
     const statusCounts = { promocion: 0, regular: 0, libre: 0 }
+    const riskStudents = []
+    const attendanceThreshold = catedra?.porcentaje_asistencia || 80
     
     alumnos.forEach(alumno => {
-      // Calculate attendance %
-      const presents = asistencias.filter(a => a.inscripcion_id === alumno.id && a.estado === 'presente' && validClases.some(vc => vc.id === a.clase_id)).length
+      const presents = (asistencias || []).filter(a => a.inscripcion_id === alumno.id && a.estado === 'presente' && validClases.some(vc => vc.id === a.clase_id)).length
       const attPct = (presents / Math.max(validClases.length, 1)) * 100
       
-      // Get grades
-      const p1 = notas.find(n => n.inscripcion_id === alumno.id && n.tipo === TIPO_NOTA.PARCIAL_1)?.valor || 0
-      const p2 = notas.find(n => n.inscripcion_id === alumno.id && n.tipo === TIPO_NOTA.PARCIAL_2)?.valor || 0
-      const rec = notas.find(n => n.inscripcion_id === alumno.id && n.tipo === TIPO_NOTA.RECUPERATORIO)?.valor || 0
+      const studentGrades = {}
+      notas.filter(n => n.inscripcion_id === alumno.id).forEach(n => {
+        studentGrades[n.tipo] = n.valor
+      })
       
-      // Simple logic for UNRC-like demo
-      const maxP1 = Math.max(p1, rec)
-      const maxP2 = Math.max(p2, rec)
-      
-      const hasAttendance = attPct >= catedra.porcentaje_asistencia
-      const canPromote = catedra.es_promocional && maxP1 >= catedra.nota_promocion_minima && maxP2 >= catedra.nota_promocion_minima && hasAttendance
-      const isRegular = maxP1 >= catedra.nota_regularizacion && maxP2 >= catedra.nota_regularizacion && hasAttendance
+      const status = calculateAcademicStatus(catedra, studentGrades, attPct)
 
-      if (canPromote) statusCounts.promocion++
-      else if (isRegular) statusCounts.regular++
+      if (status.key === 'PROMOCION') statusCounts.promocion++
+      else if (status.key === 'REGULAR') statusCounts.regular++
       else statusCounts.libre++
+
+      // Identificar riesgo
+      if (status.key === 'LIBRE' || attPct < attendanceThreshold) {
+        riskStudents.push({
+          nombre: alumno.nombre_estudiante,
+          apellido: alumno.apellido_estudiante,
+          att: attPct,
+          status: status
+        })
+      }
     })
 
     const pieData = [
@@ -99,7 +109,12 @@ export default function EstadisticasCatedraPage({ params }) {
       { name: 'Libre', value: statusCounts.libre, color: '#ef4444' }
     ].filter(d => d.value > 0)
 
-    setData({ chartData, pieData, stats: { totalAlumnos: alumnos.length, totalClases: validClases.length } })
+    setData({ 
+      chartData, 
+      pieData, 
+      riskStudents,
+      stats: { totalAlumnos: alumnos.length, totalClases: validClases.length, attendancePct: attendanceThreshold } 
+    })
     setLoading(false)
   }
 
@@ -203,11 +218,31 @@ export default function EstadisticasCatedraPage({ params }) {
        <div className="mt-12 bg-surface border border-border rounded-3xl p-8 shadow-sm">
         <h2 className="text-lg font-bold text-foreground mb-6 flex items-center gap-2 text-danger">
           <AlertCircle className="w-5 h-5" />
-          Alumnos en Riesgo (Baja Asistencia)
+          Alumnos en situación crítica (Baja Asistencia o Libres)
         </h2>
-        <div className="p-12 text-center text-muted border-2 border-dashed border-border rounded-2xl">
-          <p className="text-sm">Esta sección mostrará automáticamente a los alumnos que tienen menos del {data?.attendancePct || '80'}% de asistencia para que puedas contactarlos.</p>
-        </div>
+        
+        {data?.riskStudents?.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {data.riskStudents.map((s, i) => (
+              <div key={i} className="p-4 bg-background border border-danger/20 rounded-2xl flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-bold text-foreground">{s.apellido}, {s.nombre}</div>
+                  <div className="text-[10px] text-muted flex items-center gap-2">
+                    <span className={s.att < data.stats.attendancePct ? 'text-danger font-bold' : ''}>Asistencia: {Math.round(s.att)}%</span>
+                    <span>•</span>
+                    <span className={s.status.key === 'LIBRE' ? 'text-danger font-bold' : ''}>{s.status.label}</span>
+                  </div>
+                </div>
+                <div className={`w-2 h-2 rounded-full ${s.status.key === 'LIBRE' || s.att < data.stats.attendancePct ? 'bg-danger animate-pulse' : 'bg-warning'}`} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-12 text-center text-muted border-2 border-dashed border-border rounded-2xl">
+            <CheckCircle className="w-8 h-8 text-success mx-auto mb-3 opacity-20" />
+            <p className="text-sm">No hay alumnos en situación de riesgo crítico por el momento.</p>
+          </div>
+        )}
       </div>
     </div>
   )

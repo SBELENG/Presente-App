@@ -130,12 +130,24 @@ export default function StudentCatedraDetailPage() {
   const statusLabel = cannotPassAttendance ? 'LIBRE (POR ASISTENCIA)' : academic.label
   const statusColor = cannotPassAttendance ? 'text-danger' : academic.color
 
-  // Grades for display
-  const p1 = grades.find(n => n.tipo === TIPO_NOTA.PARCIAL_1)?.valor || 0
-  const p2 = grades.find(n => n.tipo === TIPO_NOTA.PARCIAL_2)?.valor || 0
-  const rec = grades.find(n => n.tipo === TIPO_NOTA.RECUPERATORIO)?.valor || 0
-  const maxP1 = Math.max(p1, rec)
-  const maxP2 = Math.max(p2, rec)
+  // Grades for display and calculation
+  const p1 = parseFloat(grades.find(n => n.tipo === TIPO_NOTA.PARCIAL_1)?.valor)
+  const p2 = parseFloat(grades.find(n => n.tipo === TIPO_NOTA.PARCIAL_2)?.valor)
+  const rec = parseFloat(grades.find(n => n.tipo === TIPO_NOTA.RECUPERATORIO)?.valor)
+  const tp = parseFloat(grades.find(n => (n.tipo === TIPO_NOTA.TP || n.tipo === 'tp_1'))?.valor)
+
+  const calculateStudentAverage = () => {
+    const vals = [];
+    if (!isNaN(p1)) vals.push(p1);
+    if (!isNaN(p2)) vals.push(p2);
+    if (!isNaN(tp)) vals.push(tp);
+    // Note: Recuperatorio logic for the average can be complex, 
+    // here we just use the basic average of existing main assessments.
+    if (vals.length === 0) return 0;
+    return vals.reduce((a, b) => a + b, 0) / vals.length;
+  }
+  
+  const studentAverage = calculateStudentAverage();
 
   return (
     <div className="min-h-screen bg-background p-6 md:p-12 print:p-0">
@@ -196,9 +208,13 @@ export default function StudentCatedraDetailPage() {
                <div className="bg-background border border-border rounded-3xl p-6 flex flex-col items-center justify-center text-center">
                   <div className="text-[10px] font-black text-muted uppercase tracking-[0.2em] mb-2">Promedio Temp.</div>
                   <div className="text-4xl font-black text-foreground">
-                     {((maxP1 + maxP2) / 2).toFixed(1)}
+                     {studentAverage > 0 ? studentAverage.toFixed(1) : '-'}
                   </div>
-                  <div className="text-xs text-muted mt-2">P1: {maxP1} | P2: {maxP2}</div>
+                  <div className="text-xs text-muted mt-2">
+                    {isNaN(p1) ? '' : `P1: ${p1} `}
+                    {isNaN(p2) ? '' : `P2: ${p2} `}
+                    {isNaN(tp) ? '' : `TP: ${tp}`}
+                  </div>
                </div>
                <div className="bg-background border border-border rounded-3xl p-6 flex flex-col items-center justify-center text-center">
                   <div className="text-[10px] font-black text-muted uppercase tracking-[0.2em] mb-2">Condición</div>

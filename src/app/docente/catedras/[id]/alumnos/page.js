@@ -27,6 +27,14 @@ export default function AlumnosPage({ params }) {
   const [importing, setImporting] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [message, setMessage] = useState(null)
+  const [showManualModal, setShowManualModal] = useState(false)
+  const [newStudent, setNewStudent] = useState({
+    apellido: '',
+    nombre: '',
+    dni: '',
+    email: ''
+  })
+  const [savingManual, setSavingManual] = useState(false)
 
   const supabase = createClient()
 
@@ -176,6 +184,39 @@ export default function AlumnosPage({ params }) {
     }
   }
 
+  const handleManualSubmit = async (e) => {
+    e.preventDefault()
+    if (!newStudent.apellido || !newStudent.nombre || !newStudent.dni) {
+      alert('Por favor completa todos los campos obligatorios.')
+      return
+    }
+
+    setSavingManual(true)
+    const normalized = {
+      catedra_id: id,
+      apellido_estudiante: newStudent.apellido,
+      nombre_estudiante: newStudent.nombre,
+      dni_estudiante: newStudent.dni.replace(/\D/g, ''),
+      email_estudiante: newStudent.email || '',
+      estado: 'inscripto'
+    }
+
+    const { error } = await supabase
+      .from('inscripciones')
+      .upsert(normalized, { onConflict: 'catedra_id, dni_estudiante' })
+
+    if (error) {
+      alert(`Error: ${error.message}`)
+    } else {
+      await resolvePendingAttendances([normalized.dni_estudiante])
+      setShowManualModal(false)
+      setNewStudent({ apellido: '', nombre: '', dni: '', email: '' })
+      setMessage({ type: 'success', text: `Alumno ${normalized.apellido}, ${normalized.nombre} agregado con éxito.` })
+      fetchData()
+    }
+    setSavingManual(false)
+  }
+
   const handleDelete = async (inscId) => {
     if (!confirm('¿Seguro quieres eliminar a este alumno?')) return
     const { error } = await supabase.from('inscripciones').delete().eq('id', inscId)
@@ -214,7 +255,10 @@ export default function AlumnosPage({ params }) {
               Importar CSV/Excel
               <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileUpload} />
             </label>
-            <button className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:shadow-lg transition-all">
+            <button 
+              onClick={() => setShowManualModal(true)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:shadow-lg transition-all"
+            >
               <Plus className="w-4 h-4" />
               Agregar Manual
             </button>
@@ -305,6 +349,86 @@ export default function AlumnosPage({ params }) {
           </table>
         </div>
       </div>
+
+      {/* Manual Addition Modal */}
+      {showManualModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface border border-border w-full max-w-md rounded-3xl shadow-2xl animate-scale-in">
+            <div className="p-6 border-b border-border">
+              <h2 className="text-xl font-bold">Agregar Alumno Manualmente</h2>
+              <p className="text-xs text-muted mt-1">Ingresá los datos del estudiante para inscribirlo en la cátedra.</p>
+            </div>
+            
+            <form onSubmit={handleManualSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-muted uppercase">Apellido</label>
+                  <input
+                    type="text"
+                    required
+                    value={newStudent.apellido}
+                    onChange={e => setNewStudent({...newStudent, apellido: e.target.value})}
+                    className="w-full px-4 py-2 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/50 outline-none"
+                    placeholder="Ej: Arguello"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-muted uppercase">Nombre</label>
+                  <input
+                    type="text"
+                    required
+                    value={newStudent.nombre}
+                    onChange={e => setNewStudent({...newStudent, nombre: e.target.value})}
+                    className="w-full px-4 py-2 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/50 outline-none"
+                    placeholder="Ej: Joaquín"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-muted uppercase">DNI (sin puntos)</label>
+                <input
+                  type="text"
+                  required
+                  value={newStudent.dni}
+                  onChange={e => setNewStudent({...newStudent, dni: e.target.value.replace(/\D/g, '')})}
+                  className="w-full px-4 py-2 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/50 outline-none"
+                  placeholder="Ej: 38675460"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-muted uppercase">Email (Opcional)</label>
+                <input
+                  type="email"
+                  value={newStudent.email}
+                  onChange={e => setNewStudent({...newStudent, email: e.target.value})}
+                  className="w-full px-4 py-2 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/50 outline-none"
+                  placeholder="ejemplo@correo.com"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowManualModal(false)}
+                  className="flex-1 px-4 py-2.5 bg-surface border border-border rounded-xl font-bold text-sm hover:bg-surface-hover transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingManual}
+                  className="flex-1 px-4 py-2.5 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+                >
+                  {savingManual ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  Inscribir Alumno
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <div className="mt-8 flex items-center justify-between text-sm text-muted">
         <p>Mostrando {filteredAlumnos.length} de {alumnos.length} alumnos</p>

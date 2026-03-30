@@ -3,196 +3,178 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { Mail, ArrowLeft, CheckCircle, Loader2 } from 'lucide-react'
+import { Mail, ArrowLeft, Loader2, Lock, UserPlus, LogIn, AlertTriangle } from 'lucide-react'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [nombre, setNombre] = useState('')
+  const [mode, setMode] = useState('login') // 'login' or 'signup'
   const [loading, setLoading] = useState(false)
-  const [sent, setSent] = useState(false)
   const [error, setError] = useState(null)
 
-  const handleLogin = async (e) => {
+  const handleAuth = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
-
     const supabase = createClient()
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    })
-
-    if (error) {
-      setError(error.message || 'Error al enviar el email. Intentá de nuevo.')
-      setLoading(false)
-      return
+    if (mode === 'signup') {
+      const { error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password,
+        options: {
+          data: { full_name: nombre.trim() }
+        }
+      })
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+      } else {
+        window.location.href = '/docente/catedras'
+      }
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      })
+      if (error) {
+        setError('El correo o la contraseña ingresados son incorrectos.')
+        setLoading(false)
+      } else {
+        window.location.href = '/docente/catedras'
+      }
     }
+  }
 
-    setSent(true)
-    setLoading(false)
+  // Bypass para emergencias
+  const handleBypass = () => {
+    document.cookie = `demo_bypass=true; path=/; max-age=7200;`
+    document.cookie = `demo_user=${email || '1000ideasdigitales@gmail.com'}; path=/; max-age=7200;`
+    window.location.href = '/docente/catedras'
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      {/* Left side - Decorative */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary via-primary-dark to-indigo-900 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.1),transparent)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(6,182,212,0.15),transparent)]" />
-        <div className="relative z-10 flex flex-col justify-center px-16">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-primary/20 bg-white shadow-xl shadow-primary/10 mb-6 flex items-center justify-center p-2">
-              <img src="/logo.png" alt="Logo Presente" className="w-full h-full object-contain" />
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+      <div className="w-full max-w-4xl bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200 overflow-hidden flex flex-col md:flex-row border border-slate-100">
+        
+        {/* Lado Izquierdo - Informativo */}
+        <div className="md:w-5/12 bg-primary p-12 text-white flex flex-col justify-between relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary-dark to-indigo-900 opacity-90" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-12">
+              <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center p-2 border border-white/20">
+                <img src="/logo.png" alt="Logo Presente" className="w-full h-full object-contain" />
+              </div>
+              <span className="text-2xl font-black tracking-tight tracking-tight">Presente</span>
             </div>
-            <span className="text-3xl font-bold text-white">Presente</span>
+            <h2 className="text-4xl font-bold leading-tight mb-6">Simplificamos su labor docente.</h2>
+            <p className="text-indigo-100/70 text-lg">Acceda a sus cátedras, genere códigos QR y gestione sus notas en un solo lugar.</p>
           </div>
-          <h2 className="text-4xl font-bold text-white leading-tight mb-6">
-            La forma más rápida
-            <br />
-            de tomar asistencia
-          </h2>
-          <p className="text-indigo-200 text-lg leading-relaxed max-w-md">
-            QR + verificación de identidad + analítica académica.
-            Todo en una sola plataforma diseñada para docentes.
-          </p>
-          <div className="mt-12 flex gap-8">
-            <div>
-              <div className="text-3xl font-bold text-white">30s</div>
-              <div className="text-sm text-indigo-300">por clase</div>
-            </div>
-            <div>
-              <div className="text-3xl font-bold text-white">100%</div>
-              <div className="text-sm text-indigo-300">digital</div>
-            </div>
-            <div>
-              <div className="text-3xl font-bold text-white">0</div>
-              <div className="text-sm text-indigo-300">errores</div>
-            </div>
+          <div className="relative z-10 text-xs text-white/40 font-medium tracking-widest uppercase">
+            © 2026 Sistema Presente
           </div>
         </div>
-      </div>
 
-      {/* Right side - Form */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-md">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-sm text-muted hover:text-foreground transition-colors mb-8"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Volver al inicio
-          </Link>
-
-          {!sent ? (
-            <>
-              <h1 className="text-3xl font-bold text-foreground mb-2">
-                Bienvenido a Presente
+        {/* Lado Derecho - Formulario */}
+        <div className="flex-1 p-8 md:p-16">
+          <div className="max-w-sm mx-auto">
+            <div className="mb-10">
+              <h1 className="text-3xl font-black text-slate-900 mb-2">
+                {mode === 'login' ? 'Bienvenido de nuevo' : 'Cree su cuenta'}
               </h1>
-              <p className="text-muted mb-8">
-                Ingresá tu email para recibir un enlace de acceso seguro.
-                Sin contraseña.
+              <p className="text-slate-500 font-medium">
+                {mode === 'login' ? 'Ingrese sus credenciales para continuar.' : 'Regístrese para comenzar a gestionar sus cátedras.'}
               </p>
-
-              <form onSubmit={handleLogin} className="space-y-4">
-                {process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('your-project') && (
-                  <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-500 text-sm mb-4">
-                    <strong>⚠️ Configuración incompleta:</strong><br />
-                    Las URL de Supabase en `.env.local` todavía son las de ejemplo. Copiá tu URL real para que funcione el envío.
-                  </div>
-                )}
-
-                <div>
-                  <label
-                    htmlFor="email"
-                    className="block text-sm font-medium text-foreground mb-2"
-                  >
-                    Email institucional
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
-                    <input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="tu.email@unrc.edu.ar"
-                      required
-                      className="w-full pl-12 pr-4 py-3.5 bg-surface border border-border rounded-xl text-foreground placeholder:text-muted/60 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                    />
-                  </div>
-                </div>
-
-                {error && (
-                  <div className="p-3 bg-danger/10 border border-danger/20 rounded-xl text-danger text-sm">
-                    {error}
-                  </div>
-                )}
-
-                <div className="flex flex-col gap-3">
-                  <button
-                    type="submit"
-                    disabled={loading || !email}
-                    className="w-full py-3.5 bg-gradient-to-r from-primary to-primary-dark text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-primary/25 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Enviando...
-                      </>
-                    ) : (
-                      'Enviar enlace de acceso'
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      document.cookie = "dev_bypass=true; path=/";
-                      window.location.href = '/docente';
-                    }}
-                    className="w-full py-3 border border-border text-foreground font-medium rounded-xl hover:bg-surface transition-all flex items-center justify-center gap-2"
-                  >
-                    ⚡ Ingresar en Modo Invitado (Desarrollo)
-                  </button>
-                </div>
-              </form>
-
-              <div className="mt-8 text-center pt-8 border-t border-border/50">
-                <p className="text-sm text-muted font-medium mb-4">¿Sos estudiante?</p>
-                <Link
-                  href="/alumno"
-                  className="w-full py-3 bg-surface border border-border text-foreground font-bold rounded-xl hover:border-primary/50 hover:bg-primary/5 transition-all flex items-center justify-center gap-2"
-                >
-                  Ir al Portal Estudiante
-                </Link>
-              </div>
-            </>
-          ) : (
-            <div className="text-center animate-fade-in">
-              <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-6">
-                <CheckCircle className="w-8 h-8 text-success" />
-              </div>
-              <h2 className="text-2xl font-bold text-foreground mb-3">
-                ¡Email enviado!
-              </h2>
-              <p className="text-muted mb-6">
-                Revisá tu bandeja de entrada en{' '}
-                <strong className="text-foreground">{email}</strong> y hacé clic
-                en el enlace para ingresar.
-              </p>
-              <button
-                onClick={() => {
-                  setSent(false)
-                  setEmail('')
-                }}
-                className="text-primary hover:text-primary-dark font-medium text-sm"
-              >
-                Usar otro email
-              </button>
             </div>
-          )}
+
+            <form onSubmit={handleAuth} className="space-y-5">
+              {mode === 'signup' && (
+                <div className="animate-in fade-in slide-in-from-top-2">
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Nombre Completo</label>
+                  <input
+                    type="text"
+                    value={nombre}
+                    onChange={(e) => setNombre(e.target.value)}
+                    placeholder="Prof. Juan Pérez"
+                    className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-primary focus:ring-0 transition-all text-slate-900 font-medium placeholder:text-slate-300"
+                    required
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Email Institucional</label>
+                <div className="relative">
+                  <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="nombre@unrc.edu.ar"
+                    className="w-full pl-14 pr-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-primary focus:ring-0 transition-all text-slate-900 font-medium placeholder:text-slate-300"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Contraseña</label>
+                <div className="relative">
+                  <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-14 pr-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-primary focus:ring-0 transition-all text-slate-900 font-medium placeholder:text-slate-300"
+                    required
+                    minLength={6}
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div className="p-4 bg-red-50 text-red-600 rounded-2xl text-sm font-bold border border-red-100 animate-in fade-in zoom-in-95">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-4 bg-primary text-white font-bold rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : (
+                  <>
+                    {mode === 'login' ? <LogIn className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
+                    {mode === 'login' ? 'Ingresar al Panel' : 'Registrar mi cuenta'}
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="mt-8 text-center space-y-4">
+              <button
+                type="button"
+                onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
+                className="text-sm font-bold text-slate-400 hover:text-primary transition-colors"
+              >
+                {mode === 'login' ? '¿No tiene cuenta? Regístrese aquí' : '¿Ya tiene cuenta? Inicie sesión'}
+              </button>
+
+              <div className="pt-6 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={handleBypass}
+                  className="w-full p-4 bg-amber-50 border-2 border-amber-200 rounded-2xl text-amber-700 flex items-center justify-center gap-3 hover:bg-amber-100 transition-all text-xs font-black shadow-sm"
+                >
+                  <AlertTriangle className="w-5 h-5" />
+                  ACCESO MAESTRO (PARA LA DEMO)
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
