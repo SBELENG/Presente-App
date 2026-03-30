@@ -87,9 +87,15 @@ export default function EstadisticasCatedraPage({ params }) {
       const presents = (asistencias || []).filter(a => a.inscripcion_id === alumno.id && a.estado === 'presente' && validClases.some(vc => vc.id === a.clase_id)).length
       const attPct = (presents / Math.max(validClases.length, 1)) * 100
       
-      // Proyección: ¿Puede llegar al % solicitado?
-      const maxPossibleAtt = ((presents + classesRemaining) / totalClasses) * 100
-      const isPredictiveRisk = maxPossibleAtt < attendanceThreshold && classesRemaining > 0
+      // LÓGICA PREDICTIVA REFINADA:
+      // ¿Cuántos presentes necesita para el objetivo?
+      const targetPresentsNeeded = Math.ceil(totalClasses * (attendanceThreshold / 100))
+      // ¿A cuánto puede llegar si asiste a todo lo que falta?
+      const maxPossiblePresents = presents + classesRemaining
+      
+      // Si el máximo posible es JUSTO lo que necesita (margen 0), es Riesgo Crítico.
+      // Si el máximo es MENOR a lo que necesita, ya está Libre por proyección.
+      const isPredictiveRisk = maxPossiblePresents <= targetPresentsNeeded && classesRemaining > 0
 
       // Notas
       const studentGrades = {}
@@ -113,15 +119,16 @@ export default function EstadisticasCatedraPage({ params }) {
       })
 
       // Identificar riesgo (Incluye predictivo)
-      if (status.key === 'LIBRE' || attPct < attendanceThreshold || isPredictiveRisk) {
+      const isOfficiallyLibre = status.key === 'LIBRE' || (classesRemaining === 0 && attPct < attendanceThreshold)
+      
+      if (isOfficiallyLibre || isPredictiveRisk || attPct < attendanceThreshold) {
         riskStudents.push({
           id: alumno.id,
           nombre: alumno.nombre_estudiante,
           apellido: alumno.apellido_estudiante,
           att: attPct,
-          maxAtt: maxPossibleAtt,
           status: status,
-          isPredictive: isPredictiveRisk
+          isPredictive: isPredictiveRisk && !isOfficiallyLibre
         })
       }
     })
