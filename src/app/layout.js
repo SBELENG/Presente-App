@@ -12,7 +12,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Presente — Sistema Inteligente de Asistencia Académica",
+  title: "Presente v2.0 (Verified) — Sistema Inteligente de Asistencia Académica",
   description:
     "Digitaliza la asistencia en tu cátedra con QR, verificación de identidad y analítica académica. Rápido, confiable y moderno.",
   keywords: ["asistencia", "QR", "universidad", "cátedra", "académico"],
