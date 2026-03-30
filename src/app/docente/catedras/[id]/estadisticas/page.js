@@ -73,29 +73,39 @@ export default function EstadisticasCatedraPage({ params }) {
       }
     })
 
-    // 2. Student Analytics & Status Distribution
-    const statusCounts = { promocion: 0, regular: 0, libre: 0, en_curso: 0 }
-    const riskStudents = []
-    const gradeChartData = []
-    
+    // --- LÓGICA DE CONTADOR DE FALTAS (MARGEN 0) ---
     const attendanceThreshold = catedra?.porcentaje_asistencia || 80
-    const totalClasses = (catedra?.cant_clases_teoria || 0) + (catedra?.cant_clases_practica || 0) || clases.length || 1
-    const classesRemaining = Math.max(0, totalClasses - validClases.length)
+    
+    // 0. Calcular TODAS las fechas de clase del semestre real
+    const allExpectedTeo = generarFechas(catedra.fecha_inicio, catedra.fecha_fin, catedra.dias_clase || [])
+    let allExpectedPrac = []
+    if (catedra.agenda_rota_practicas) {
+      allExpectedPrac = generarFechas(catedra.fecha_inicio_practica || catedra.fecha_inicio, catedra.fecha_fin_practica || catedra.fecha_fin, [1,2,3,4,5,6].map(n => ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'][n]))
+    } else if (catedra.dias_practica && catedra.dias_practica.length > 0) {
+      allExpectedPrac = generarFechas(catedra.fecha_inicio_practica || catedra.fecha_inicio, catedra.fecha_fin_practica || catedra.fecha_fin, catedra.dias_practica)
+    }
+
+    const totalScheduledDates = [...new Set([...allExpectedTeo, ...allExpectedPrac].map(f => f.toISOString().split('T')[0]))]
+    const totalClassesCount = totalScheduledDates.length || 1
+    
+    // Límite de faltas permitido (Faltas = Total * (1 - %Exigencia))
+    const maxAbsencesAllowed = Math.floor(totalClassesCount * (1 - (attendanceThreshold / 100)))
 
     alumnos.forEach(alumno => {
-      // Asistencia real
+      // 1. Asistencia real (Presentes)
       const presents = (asistencias || []).filter(a => a.inscripcion_id === alumno.id && a.estado === 'presente' && validClases.some(vc => vc.id === a.clase_id)).length
+      
+      // 2. Faltas reales (Cualquier clase dada que NO tenga presente al alumno)
+      const absences = (validClases || []).filter(vc => {
+        const assistRecord = (asistencias || []).find(a => a.clase_id === vc.id && a.inscripcion_id === alumno.id)
+        return !assistRecord || assistRecord.estado !== 'presente'
+      }).length
+
       const attPct = (presents / Math.max(validClases.length, 1)) * 100
       
-      // LÓGICA PREDICTIVA REFINADA:
-      // ¿Cuántos presentes necesita para el objetivo?
-      const targetPresentsNeeded = Math.ceil(totalClasses * (attendanceThreshold / 100))
-      // ¿A cuánto puede llegar si asiste a todo lo que falta?
-      const maxPossiblePresents = presents + classesRemaining
-      
-      // Si el máximo posible es JUSTO lo que necesita (margen 0), es Riesgo Crítico.
-      // Si el máximo es MENOR a lo que necesita, ya está Libre por proyección.
-      const isPredictiveRisk = maxPossiblePresents <= targetPresentsNeeded && classesRemaining > 0
+      // DETECTOR MARGEN 0: Si ya tiene el máximo de faltas permitido
+      const isPredictiveRisk = absences === maxAbsencesAllowed && maxAbsencesAllowed > 0
+      const isAlreadyLibreByAbsences = absences > maxAbsencesAllowed
 
       // Notas
       const studentGrades = {}
@@ -118,17 +128,17 @@ export default function EstadisticasCatedraPage({ params }) {
         p2: studentGrades.parcial_2 || studentGrades.P2 || 0
       })
 
-      // Identificar riesgo (Incluye predictivo)
-      const isOfficiallyLibre = status.key === 'LIBRE' || (classesRemaining === 0 && attPct < attendanceThreshold)
-      
-      if (isOfficiallyLibre || isPredictiveRisk || attPct < attendanceThreshold) {
+      // Identificar riesgo crítico
+      if (status.key === 'LIBRE' || isAlreadyLibreByAbsences || isPredictiveRisk) {
         riskStudents.push({
           id: alumno.id,
           nombre: alumno.nombre_estudiante,
           apellido: alumno.apellido_estudiante,
           att: attPct,
-          status: status,
-          isPredictive: isPredictiveRisk && !isOfficiallyLibre
+          absences: absences,
+          maxAbs: maxAbsencesAllowed,
+          status: isAlreadyLibreByAbsences ? { label: 'LIBRE POR FALTAS', key: 'LIBRE' } : status,
+          isPredictive: isPredictiveRisk
         })
       }
     })
@@ -145,7 +155,7 @@ export default function EstadisticasCatedraPage({ params }) {
       pieData, 
       riskStudents,
       gradeChartData,
-      stats: { totalAlumnos: alumnos.length, totalClases: validClases.length, attendancePct: attendanceThreshold } 
+      stats: { totalAlumnos: alumnos.length, totalClases: totalClassesCount, attendancePct: attendanceThreshold } 
     })
     setLoading(false)
   }
@@ -284,13 +294,13 @@ export default function EstadisticasCatedraPage({ params }) {
                 <div className="space-y-1">
                   <div className="text-sm font-bold text-foreground">{s.apellido}, {s.nombre}</div>
                   <div className="text-[10px] text-muted flex flex-col gap-1">
-                    <span className={s.att < data.stats.attendancePct ? 'text-danger font-bold' : ''}>Asistencia Actual: {Math.round(s.att)}%</span>
+                    <span className={s.absences >= s.maxAbs ? 'text-danger font-bold' : ''}>Faltas: {s.absences} de {s.maxAbs} permitidas</span>
                     <span className={s.status.key === 'LIBRE' ? 'text-danger font-bold' : ''}>Estado: {s.status.label}</span>
                   </div>
                   {s.isPredictive && (
                     <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-danger/10 text-[9px] font-black text-danger uppercase animate-pulse">
                       <AlertCircle className="w-3 h-3" />
-                      Asistencia Obligatoria
+                      Margen 0: Próxima falta Libre
                     </div>
                   )}
                 </div>
