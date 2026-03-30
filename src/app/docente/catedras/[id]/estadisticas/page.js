@@ -28,7 +28,7 @@ import {
   ReferenceLine
 } from 'recharts'
 import { TIPO_NOTA } from '@/lib/constants'
-import { calculateAcademicStatus } from '@/lib/academic-logic'
+import { calculateAcademicStatus, generarFechas } from '@/lib/academic-logic'
 
 export default function EstadisticasCatedraPage({ params }) {
   const unwrappedParams = use(params)
