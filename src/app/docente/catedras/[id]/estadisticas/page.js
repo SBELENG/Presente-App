@@ -73,10 +73,10 @@ export default function EstadisticasCatedraPage({ params }) {
       }
     })
 
-    // --- LÓGICA DE CONTADOR DE FALTAS (MARGEN 0) ---
+    // --- LÓGICA DE CONTADOR DE FALTAS (OPTIMIZADA) ---
     const attendanceThreshold = catedra?.porcentaje_asistencia || 80
     
-    // 0. Calcular TODAS las fechas de clase del semestre real
+    // 0. Calcular calendario real del semestre
     const allExpectedTeo = generarFechas(catedra.fecha_inicio, catedra.fecha_fin, catedra.dias_clase || [])
     let allExpectedPrac = []
     if (catedra.agenda_rota_practicas) {
@@ -87,23 +87,34 @@ export default function EstadisticasCatedraPage({ params }) {
 
     const totalScheduledDates = [...new Set([...allExpectedTeo, ...allExpectedPrac].map(f => f.toISOString().split('T')[0]))]
     const totalClassesCount = totalScheduledDates.length || 1
-    
-    // Límite de faltas permitido (Faltas = Total * (1 - %Exigencia))
     const maxAbsencesAllowed = Math.floor(totalClassesCount * (1 - (attendanceThreshold / 100)))
 
+    // --- OPTIMIZACIÓN: Mapa de Presencias ---
+    const presenceMap = new Map() // Key: inscripcion_id-clase_id
+    asistencias.forEach(a => {
+        if (a.estado === 'presente') {
+            presenceMap.set(`${a.inscripcion_id}-${a.clase_id}`, true)
+        }
+    })
+
+    const validClaseIds = validClases.map(vc => vc.id)
+
     alumnos.forEach(alumno => {
-      // 1. Asistencia real (Presentes)
-      const presents = (asistencias || []).filter(a => a.inscripcion_id === alumno.id && a.estado === 'presente' && validClases.some(vc => vc.id === a.clase_id)).length
-      
-      // 2. Faltas reales (Cualquier clase dada que NO tenga presente al alumno)
-      const absences = (validClases || []).filter(vc => {
-        const assistRecord = (asistencias || []).find(a => a.clase_id === vc.id && a.inscripcion_id === alumno.id)
-        return !assistRecord || assistRecord.estado !== 'presente'
-      }).length
+      // 1. Asistencia real (Usando el Mapa optimizado)
+      let presents = 0
+      let absences = 0
+
+      validClaseIds.forEach(claseId => {
+        if (presenceMap.has(`${alumno.id}-${claseId}`)) {
+            presents++
+        } else {
+            absences++
+        }
+      })
 
       const attPct = (presents / Math.max(validClases.length, 1)) * 100
       
-      // DETECTOR MARGEN 0: Si ya tiene el máximo de faltas permitido
+      // DETECTOR MARGEN 0
       const isPredictiveRisk = absences === maxAbsencesAllowed && maxAbsencesAllowed > 0
       const isAlreadyLibreByAbsences = absences > maxAbsencesAllowed
 
