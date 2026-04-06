@@ -32,6 +32,9 @@ export default async function DocenteDashboard() {
 
   // Try to fetch cátedras (will be empty if tables don't exist yet)
   let catedras = []
+  let totalEstudiantes = 0;
+  let totalClasesDictadas = 0;
+
   try {
     const query = supabase.from('catedras').select('*')
     
@@ -41,7 +44,29 @@ export default async function DocenteDashboard() {
     }
 
     const { data } = await query.order('created_at', { ascending: false })
-    if (data) catedras = data
+    if (data) {
+      catedras = data
+      
+      const catedraIds = catedras.map(c => c.id);
+      
+      if (catedraIds.length > 0) {
+        // Obtenemos inscripciones (estudiantes)
+        const { count: estudiantesCount } = await supabase
+          .from('inscripciones')
+          .select('*', { count: 'exact', head: true })
+          .in('catedra_id', catedraIds);
+        
+        totalEstudiantes = estudiantesCount || 0;
+
+        // Obtenemos clases dictadas
+        const { count: clasesCount } = await supabase
+          .from('clases')
+          .select('*', { count: 'exact', head: true })
+          .in('catedra_id', catedraIds);
+          
+        totalClasesDictadas = clasesCount || 0;
+      }
+    }
   } catch {
     // Tables may not exist yet
   }
@@ -80,7 +105,7 @@ export default async function DocenteDashboard() {
               <Users className="w-6 h-6 text-accent" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-foreground">0</div>
+              <div className="text-2xl font-bold text-foreground">{totalEstudiantes}</div>
               <div className="text-sm text-muted">Estudiantes</div>
             </div>
           </div>
@@ -92,7 +117,7 @@ export default async function DocenteDashboard() {
               <BarChart3 className="w-6 h-6 text-success" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-foreground">0</div>
+              <div className="text-2xl font-bold text-foreground">{totalClasesDictadas}</div>
               <div className="text-sm text-muted">Clases dictadas</div>
             </div>
           </div>

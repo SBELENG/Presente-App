@@ -184,7 +184,16 @@ export default function NuevaCatedraPage() {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     
-    let docenteId = user?.id
+    const getCookie = (name) => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return decodeURIComponent(parts.pop().split(';').shift());
+      return null;
+    }
+    const isDemoBypass = getCookie('demo_bypass') === 'true'
+    const demoEmail = getCookie('demo_user')
+    
+    let docenteId = user?.id || (isDemoBypass ? demoEmail : null)
 
     if (!docenteId) { 
       setError('No estás autenticado. Por favor, ingresá por el login.'); 

@@ -10,13 +10,21 @@ export default async function CatedrasPage() {
   const userEmail = user?.email
   let query = supabase.from('catedras').select('*').order('created_at', { ascending: false })
   
-  if (user?.id) {
-    // Si es el mail de pruebas, también permitimos ver la data del legacy ID (dev bypass previo)
-    if (userEmail === '1000ideasdigitales@gmail.com') {
+  // Handle demo bypass session
+  const cookieStore = await cookies()
+  const isDemoBypass = cookieStore.get('demo_bypass')?.value === 'true'
+  const demoEmail = cookieStore.get('demo_user')?.value
+  
+  // Use either the real user ID or the demo email as an identifier
+  const docenteIdentifier = user?.id || (isDemoBypass ? demoEmail : null)
+  
+  if (docenteIdentifier) {
+    const isLegacyUser = docenteIdentifier === '1000ideasdigitales@gmail.com'
+    if (isLegacyUser) {
       const legacyId = '3cd85ad4-bd2a-4639-9c88-bb22bc63ed88'
-      query = query.or(`docente_id.eq.${user.id},docente_id.eq.${legacyId}`)
+      query = query.eq('docente_id', legacyId)
     } else {
-      query = query.eq('docente_id', user.id)
+      query = query.eq('docente_id', docenteIdentifier)
     }
   } else {
     // Si no hay usuario ni bypass, redirigir es tarea del middleware,

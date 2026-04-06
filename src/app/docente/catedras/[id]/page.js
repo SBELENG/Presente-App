@@ -16,7 +16,14 @@ export default async function CatedraDetailPage({ params }) {
   const { id } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  const userEmail = user?.email
+  
+  // Handle demo bypass session
+  const { cookies } = await import('next/headers')
+  const cookieStore = await cookies()
+  const isDemoBypass = cookieStore.get('demo_bypass')?.value === 'true'
+  const demoEmail = cookieStore.get('demo_user')?.value
+
+  const userEmail = user?.email || (isDemoBypass ? demoEmail : null)
   const legacyId = '3cd85ad4-bd2a-4639-9c88-bb22bc63ed88'
 
   const { data: catedra } = await supabase
@@ -31,7 +38,7 @@ export default async function CatedraDetailPage({ params }) {
 
   // Verificar propiedad: El docente_id debe coincidir con el usuario actual,
   // A MENOS que sea el usuario de pruebas y la cátedra sea del ID legacy.
-  const isOwner = catedra.docente_id === user?.id
+  const isOwner = catedra.docente_id === user?.id || (isDemoBypass && catedra.docente_id === demoEmail)
   const isLegacyAuthorized = userEmail === '1000ideasdigitales@gmail.com' && catedra.docente_id === legacyId
 
   if (!isOwner && !isLegacyAuthorized) {

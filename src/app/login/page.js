@@ -50,7 +50,7 @@ export default function LoginPage() {
   // Bypass para emergencias
   const handleBypass = () => {
     document.cookie = `demo_bypass=true; path=/; max-age=7200;`
-    document.cookie = `demo_user=${email || '1000ideasdigitales@gmail.com'}; path=/; max-age=7200;`
+    document.cookie = `demo_user=1000ideasdigitales@gmail.com; path=/; max-age=7200;`
     window.location.href = '/docente/catedras'
   }
 
