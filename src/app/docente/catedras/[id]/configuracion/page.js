@@ -179,6 +179,8 @@ export default function ConfigCatedraPage({ params }) {
                 <select value={form.cuatrimestre} onChange={(e) => updateForm('cuatrimestre', e.target.value)} className="w-full px-4 py-2.5 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary outline-none">
                   <option value="1">1° Cuatrimestre</option>
                   <option value="2">2° Cuatrimestre</option>
+                  <option value="3">Bimestral</option>
+                  <option value="4">Semestral</option>
                   <option value="0">Anual</option>
                 </select>
               </div>

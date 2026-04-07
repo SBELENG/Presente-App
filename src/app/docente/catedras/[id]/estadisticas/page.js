@@ -29,7 +29,7 @@ import {
   ReferenceLine
 } from 'recharts'
 import { TIPO_NOTA } from '@/lib/constants'
-import { calculateAcademicStatus, generarFechas } from '@/lib/academic-logic'
+import { calculateAcademicStatus, generarFechas, getStudentExpectedDates } from '@/lib/academic-logic'
 
 export default function EstadisticasCatedraPage({ params }) {
   const [id, setId] = useState(null)
@@ -139,7 +139,15 @@ export default function EstadisticasCatedraPage({ params }) {
           }
         })
 
-        const attPct = (presents / Math.max(validClases.length, 1)) * 100
+        // NUEVO CALCULO UNIFICADO
+        const projectedDatesForStudent = getStudentExpectedDates(catedra, alumno, clases || [])
+        const validasTomadasCount = projectedDatesForStudent.filter(dDate => {
+           const fs = dDate.toISOString().split('T')[0]
+           const dbClase = (clases || []).find(c => c.fecha === fs)
+           return dbClase && dbClase.estado_clase === 'normal'
+        }).length
+        
+        const attPct = validasTomadasCount > 0 ? (presents / validasTomadasCount) * 100 : 100
         
         const isPredictiveRisk = absences === maxAbsencesAllowed && maxAbsencesAllowed > 0
         const isAlreadyLibreByAbsences = absences > maxAbsencesAllowed

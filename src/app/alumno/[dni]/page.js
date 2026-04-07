@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { TIPO_NOTA } from '@/lib/constants'
-import { calculateAcademicStatus } from '@/lib/academic-logic'
+import { calculateAcademicStatus, getStudentExpectedDates } from '@/lib/academic-logic'
 import { useParams } from 'next/navigation'
 
 export default function StudentDashboardPage() {
@@ -61,8 +61,16 @@ export default function StudentDashboardPage() {
         .eq('estado', 'presente')
       
       const attCount = attendances?.length || 0;
-      const filteredClases = classes?.filter(c => c.estado_clase === 'normal') || [];
-      const attendancePct = filteredClases.length > 0 ? Math.round((attCount / filteredClases.length) * 100) : 100;
+      
+      const expectedDates = getStudentExpectedDates(insc.catedras, insc, classes);
+      const validDatesCount = expectedDates.filter(dDate => {
+        const fs = dDate.toISOString().split('T')[0]
+        const dbClase = classes?.find(c => c.fecha === fs)
+        return dbClase && dbClase.estado_clase === 'normal'
+      }).length
+      
+      const percentageDenominator = validDatesCount > 0 ? validDatesCount : 1
+      const attendancePct = Math.round((attCount / percentageDenominator) * 100);
 
       // Fetch grades to generic object
       const { data: grades } = await supabase

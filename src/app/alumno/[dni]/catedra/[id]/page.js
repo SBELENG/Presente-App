@@ -20,7 +20,7 @@ import {
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { TIPO_NOTA } from '@/lib/constants'
-import { calculateAcademicStatus } from '@/lib/academic-logic'
+import { calculateAcademicStatus, getStudentExpectedDates } from '@/lib/academic-logic'
 
 export default function StudentCatedraDetailPage() {
   const params = useParams()
@@ -83,24 +83,7 @@ export default function StudentCatedraDetailPage() {
   const { insc, catedra, classes, attendances, grades } = data
   const DIAS_MAP = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 0 }
   
-  const generateProjectedDates = () => {
-    if (!catedra.fecha_inicio || !catedra.fecha_fin) return []
-    const res = []
-    const start = new Date(catedra.fecha_inicio + 'T12:00:00')
-    const end = new Date(catedra.fecha_fin + 'T12:00:00')
-    const scheduledDays = (catedra.dias_clase || []).map(d => DIAS_MAP[d])
-    
-    let cur = new Date(start)
-    while(cur <= end) {
-      if (scheduledDays.includes(cur.getDay())) {
-        res.push(new Date(cur))
-      }
-      cur.setDate(cur.getDate() + 1)
-    }
-    return res
-  }
-
-  const projectedDates = generateProjectedDates()
+  const projectedDates = getStudentExpectedDates(catedra, insc, classes)
   
   // A 'valid' class for the denominator is: 
   // Any session in the plan, UNLESS it exists in the DB with status !== 'normal'
@@ -112,7 +95,19 @@ export default function StudentCatedraDetailPage() {
 
   const totalPresents = attendances.filter(a => a.estado === 'presente').length
   const dictadasValidas = classes.filter(c => c.estado_clase === 'normal')
-  const attendancePct = dictadasValidas.length > 0 ? Math.round((totalPresents / dictadasValidas.length) * 100) : 100
+  
+  // Calculate percentage against valid (non-exception) sessions that have ALREADY passed/occured today, 
+  // preventing a penalty for future classes.
+  // Wait, no. If the user expects "cant de clases" to mean dictadasValidas para este estudiante.
+  const validasTomadasCount = projectedDates.filter(dDate => {
+     const fs = dDate.toISOString().split('T')[0]
+     const dbClase = classes.find(c => c.fecha === fs)
+     return dbClase && dbClase.estado_clase === 'normal'
+  }).length
+  
+  // Use the PAST valid sessions count (tomadas). If they haven't had classes, it's 100%.
+  const percentageDenominator = validasTomadasCount > 0 ? validasTomadasCount : 1
+  const attendancePct = Math.round((totalPresents / percentageDenominator) * 100)
 
   // Status Logic using Shared Academic Logic
   const gradesObj = {};
@@ -203,7 +198,7 @@ export default function StudentCatedraDetailPage() {
                   <div className={`text-4xl font-black ${attendancePct >= catedra.porcentaje_asistencia ? 'text-success' : 'text-danger'}`}>
                      {attendancePct}%
                   </div>
-                  <div className="text-xs text-muted mt-2">{totalPresents} de {dictadasValidas.length} clases</div>
+                  <div className="text-xs text-muted mt-2">{totalPresents} de {validasTomadasCount} clases dictadas</div>
                </div>
                <div className="bg-background border border-border rounded-3xl p-6 flex flex-col items-center justify-center text-center">
                   <div className="text-[10px] font-black text-muted uppercase tracking-[0.2em] mb-2">Promedio Temp.</div>

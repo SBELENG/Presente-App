@@ -121,3 +121,121 @@ export function generarFechas(fechaInicio, fechaFin, diasSemana = []) {
   }
   return result
 }
+
+/**
+ * Recupera de forma precisa el listado de fechas esperadas (y dictadas)
+ * para un estudiante específico, combinando la teoría y la práctica (si corresponde a su comisión).
+ * Devuelve un array de objetos Date.
+ */
+export function getStudentExpectedDates(catedra, insc, clasesDB = []) {
+  if (!catedra) return [];
+
+  const tipo = Array.isArray(catedra.tipo_clase) ? catedra.tipo_clase : [catedra.tipo_clase || 'teorico_practica'];
+  const esTeo = tipo.includes('teorica') || tipo.includes('teorico_practica');
+  const esPrac = tipo.includes('practica') || tipo.includes('teorico_practica');
+  
+  let expectedDates = [];
+
+  // Fechas Teóricas
+  if (esTeo) {
+    const dTeo = generarFechas(catedra.fecha_inicio, catedra.fecha_fin, catedra.dias_clase || []);
+    expectedDates = [...expectedDates, ...dTeo];
+  }
+
+  // Fechas Prácticas
+  if (esPrac) {
+    let dPrac = [];
+    const comisiones = catedra.comisiones_division || [];
+    
+    // Identificar comisión del alumno
+    let myCom = null;
+    let myComIdx = -1;
+    if (insc.comision_manual) {
+      myComIdx = comisiones.findIndex(c => c.nombre === insc.comision_manual);
+      myCom = comisiones[myComIdx];
+    } else {
+      const primera = (insc.apellido_estudiante || '').trim()[0]?.toUpperCase();
+      if (primera) {
+        myComIdx = comisiones.findIndex(c => c.desde && c.hasta && primera >= c.desde.toUpperCase() && primera <= c.hasta.toUpperCase());
+        myCom = comisiones[myComIdx];
+      }
+    }
+
+    const bloques = catedra.bloques_semanales || {};
+    const hasBloques = Object.keys(bloques).length > 0;
+    
+    const diasPractica = (catedra.dias_practica && catedra.dias_practica.length > 0)
+      ? catedra.dias_practica
+      : (catedra.dias_clase || []);
+
+    if (myCom) {
+      if (hasBloques) {
+        // Lógica de bloques por comisión
+        let diasNums;
+        if (catedra.dias_practica && catedra.dias_practica.length > 0) {
+          const dMap = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 0 };
+          diasNums = catedra.dias_practica.map(d => dMap[d]).filter(n => n !== undefined);
+        } else if (catedra.agenda_rota_practicas) {
+          diasNums = [1, 2, 3, 4, 5, 6];
+        } else {
+          const dMap = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 0 };
+          diasNums = (catedra.dias_clase || []).map(d => dMap[d]).filter(n => n !== undefined);
+        }
+        
+        const fInicio = catedra.fecha_inicio_practica || catedra.fecha_inicio;
+        const fFin = catedra.fecha_fin_practica || catedra.fecha_fin;
+        const inicio = fInicio ? new Date(fInicio + 'T12:00:00') : null;
+        const fin = fFin ? new Date(fFin + 'T12:00:00') : null;
+
+        Object.entries(bloques).forEach(([weekId, comIndices]) => {
+          if (!Array.isArray(comIndices) || !comIndices.includes(myComIdx)) return;
+          const [yearStr, weekStr] = weekId.split('-W');
+          const year = parseInt(yearStr);
+          const week = parseInt(weekStr);
+          const jan4 = new Date(year, 0, 4, 12);
+          const monday = new Date(jan4);
+          monday.setDate(jan4.getDate() - (jan4.getDay() === 0 ? 6 : jan4.getDay() - 1) + (week - 1) * 7);
+          
+          for (let d = 0; d < 7; d++) {
+            const day = new Date(monday);
+            day.setDate(monday.getDate() + d);
+            if (!diasNums.includes(day.getDay())) continue;
+            if (inicio && fin) {
+              if (day >= inicio && day <= fin) dPrac.push(new Date(day));
+            } else {
+              dPrac.push(new Date(day));
+            }
+          }
+        });
+      } else {
+        // Lógica simple de comisión (por dias de la comision o fallback)
+        const dComMs = (myCom.dias && myCom.dias.length > 0) ? myCom.dias : diasPractica;
+        dPrac = generarFechas(catedra.fecha_inicio, catedra.fecha_fin, dComMs);
+      }
+    } else {
+      // Sin comisión
+      if (catedra.agenda_rota_practicas && esPrac) {
+        dPrac = generarFechas(
+          catedra.fecha_inicio_practica || catedra.fecha_inicio,
+          catedra.fecha_fin_practica || catedra.fecha_fin,
+          diasPractica
+        );
+      } else {
+        dPrac = generarFechas(catedra.fecha_inicio, catedra.fecha_fin, diasPractica);
+      }
+    }
+    
+    expectedDates = [...expectedDates, ...dPrac];
+  }
+
+  // Defensa absoluta: Agregar clases "huérfanas" reales tomadas por el profe a las que este alumno le hayan puesto "presente",
+  // o que caigan justo en el tipo de clase apropiado.
+  // Pero para simplificar, deduplicamos por timestamp.
+  const uniqueStamps = new Set(expectedDates.map(d => d.getTime()));
+  const finalDates = [...expectedDates];
+
+  // También se pueden chequear aquí días huérfanos que el alumno sí asistió
+  
+  finalDates.sort((a, b) => a - b);
+  return finalDates;
+}

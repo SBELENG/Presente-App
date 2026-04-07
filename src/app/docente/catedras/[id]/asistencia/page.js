@@ -350,11 +350,17 @@ function AttendanceTable({ label, fechas, alumnos, asistencias, clases, requerid
   const validasProyectadas = fechas.filter(f => !isExc(f))
 
   const calcPct = (alumnoId) => {
-    // MATEMÁTICA ESTRICTA: (Asistencias Totales) / (Fechas Totales - Feriados)
-    const validasTotal = fechas.filter(f => !isExc(f)).length
-    if (validasTotal === 0) return null
-    const presentesCount = asistencias.filter(as => as.inscripcion_id === alumnoId && as.estado === 'presente').length
-    return Math.round((presentesCount / validasTotal) * 100)
+    // MATEMÁTICA REAL: (Asistencias Totales) / (Clases Dictadas y Válidas)
+    const validasTomadasCount = fechas.filter(f => !isExc(f) && getClase(f)).length
+    if (validasTomadasCount === 0) return null
+    
+    // Contamos solo las asistencias que corresponden a fechas válidas tomadas en esta vista
+    const presentesCount = fechas.filter(f => {
+      if (isExc(f) || !getClase(f)) return false
+      return getStatus(alumnoId, f) === 'presente'
+    }).length
+    
+    return Math.round((presentesCount / validasTomadasCount) * 100)
   }
 
   if (!fechas.length) return null

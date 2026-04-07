@@ -312,6 +312,7 @@ export default function NuevaCatedraPage() {
                   <option value="1">1° Cuatrimestre</option>
                   <option value="2">2° Cuatrimestre</option>
                   <option value="3">Bimestral</option>
+                  <option value="4">Semestral</option>
                   <option value="0">Anual</option>
                 </select>
               </div>
