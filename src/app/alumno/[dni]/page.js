@@ -63,10 +63,14 @@ export default function StudentDashboardPage() {
       const attCount = attendances?.length || 0;
       
       const expectedDates = getStudentExpectedDates(insc.catedras, insc, classes);
+      // Denominador ACUMULATIVO: total de fechas del curso completo, excluyendo excepciones.
+      // Las clases futuras sin registro en DB cuentan como válidas (no son excepción todavía).
+      // Esto iguala la lógica del docente: 1 presente / 36 clases totales = ~3%, no 200%.
       const validDatesCount = expectedDates.filter(dDate => {
         const fs = dDate.toISOString().split('T')[0]
         const dbClase = classes?.find(c => c.fecha === fs)
-        return dbClase && dbClase.estado_clase === 'normal'
+        // Sin registro DB (futuras) → válida. Con registro → solo si es 'normal'
+        return !dbClase || dbClase.estado_clase === 'normal'
       }).length
       
       const percentageDenominator = validDatesCount > 0 ? validDatesCount : 1

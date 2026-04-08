@@ -96,16 +96,16 @@ export default function StudentCatedraDetailPage() {
   const totalPresents = attendances.filter(a => a.estado === 'presente').length
   const dictadasValidas = classes.filter(c => c.estado_clase === 'normal')
   
-  // Calculate percentage against valid (non-exception) sessions that have ALREADY passed/occured today, 
-  // preventing a penalty for future classes.
-  // Wait, no. If the user expects "cant de clases" to mean dictadasValidas para este estudiante.
+  // Denominador ACUMULATIVO: total de fechas del curso completo (incluyendo futuras), sin excepciones.
+  // Igual a la lógica del docente: 1 presente / 36 clases totales = ~3%.
+  // Las clases futuras sin registro en DB cuentan como válidas (aún no son excepción).
   const validasTomadasCount = projectedDates.filter(dDate => {
      const fs = dDate.toISOString().split('T')[0]
      const dbClase = classes.find(c => c.fecha === fs)
-     return dbClase && dbClase.estado_clase === 'normal'
+     // Sin registro (futuras) → válida. Con registro → solo si es 'normal'
+     return !dbClase || dbClase.estado_clase === 'normal'
   }).length
   
-  // Use the PAST valid sessions count (tomadas). If they haven't had classes, it's 100%.
   const percentageDenominator = validasTomadasCount > 0 ? validasTomadasCount : 1
   const attendancePct = Math.round((totalPresents / percentageDenominator) * 100)
 
@@ -198,7 +198,7 @@ export default function StudentCatedraDetailPage() {
                   <div className={`text-4xl font-black ${attendancePct >= catedra.porcentaje_asistencia ? 'text-success' : 'text-danger'}`}>
                      {attendancePct}%
                   </div>
-                  <div className="text-xs text-muted mt-2">{totalPresents} de {validasTomadasCount} clases dictadas</div>
+                  <div className="text-xs text-muted mt-2">{totalPresents} presentes de {validasTomadasCount} clases del curso</div>
                </div>
                <div className="bg-background border border-border rounded-3xl p-6 flex flex-col items-center justify-center text-center">
                   <div className="text-[10px] font-black text-muted uppercase tracking-[0.2em] mb-2">Promedio Temp.</div>
