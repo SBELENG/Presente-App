@@ -11,17 +11,30 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
   const [sessionReady, setSessionReady] = useState(false)
+  const [checking, setChecking] = useState(true)
 
   const supabase = createClient()
 
   useEffect(() => {
-    // Supabase maneja automáticamente el token del hash de la URL
-    // al detectar el evento PASSWORD_RECOVERY
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
+    // 1. Verifica si ya hay una sesión activa (el token ya fue procesado)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
         setSessionReady(true)
+        setChecking(false)
       }
     })
+
+    // 2. Escucha el evento PASSWORD_RECOVERY (llega cuando se procesa el token del link)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
+        setSessionReady(true)
+        setChecking(false)
+      }
+      if (event === 'INITIAL_SESSION') {
+        setChecking(false)
+      }
+    })
+
     return () => subscription.unsubscribe()
   }, [])
 
@@ -52,6 +65,7 @@ export default function ResetPasswordPage() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
       <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200 border border-slate-100 overflow-hidden">
+
         {/* Header */}
         <div className="bg-primary p-10 text-white relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary-dark to-indigo-900 opacity-90" />
@@ -80,18 +94,33 @@ export default function ResetPasswordPage() {
               <h2 className="text-xl font-bold text-slate-900">¡Contraseña actualizada!</h2>
               <p className="text-slate-500 text-sm">Serás redirigido al inicio de sesión en unos segundos...</p>
             </div>
+
+          ) : checking ? (
+            <div className="text-center py-6 space-y-3">
+              <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto" />
+              <p className="text-slate-500 text-sm">Verificando el link de recuperación...</p>
+            </div>
+
           ) : !sessionReady ? (
             <div className="text-center space-y-4 py-4">
               <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mx-auto">
                 <AlertTriangle className="w-6 h-6 text-amber-500" />
               </div>
-              <p className="text-slate-600 text-sm font-medium">
-                Verificando el link de recuperación...
+              <p className="text-slate-700 font-bold text-sm">
+                El link expiró o ya fue usado.
               </p>
-              <p className="text-slate-400 text-xs">
-                Si llegaste aquí por error, <a href="/login" className="text-primary font-bold hover:underline">volvé al login</a>.
+              <p className="text-slate-400 text-xs leading-relaxed">
+                Los links de recuperación son válidos por 1 hora y de un solo uso.<br/>
+                Podés solicitar uno nuevo desde el login.
               </p>
+              <a
+                href="/login"
+                className="inline-block mt-2 px-6 py-3 bg-primary text-white font-bold rounded-2xl text-sm hover:opacity-90 transition-all"
+              >
+                Ir al login
+              </a>
             </div>
+
           ) : (
             <form onSubmit={handleReset} className="space-y-5">
               <div>
@@ -108,6 +137,7 @@ export default function ResetPasswordPage() {
                     className="w-full pl-14 pr-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-primary focus:ring-0 transition-all text-slate-900 font-medium placeholder:text-slate-300"
                     required
                     minLength={6}
+                    autoFocus
                   />
                 </div>
               </div>
