@@ -228,14 +228,16 @@ export function getStudentExpectedDates(catedra, insc, clasesDB = []) {
     expectedDates = [...expectedDates, ...dPrac];
   }
 
-  // Defensa absoluta: Agregar clases "huérfanas" reales tomadas por el profe a las que este alumno le hayan puesto "presente",
-  // o que caigan justo en el tipo de clase apropiado.
-  // Pero para simplificar, deduplicamos por timestamp.
-  const uniqueStamps = new Set(expectedDates.map(d => d.getTime()));
-  const finalDates = [...expectedDates];
+  // Deduplicar por timestamp (evita doble cuenta en cátedras teorico_practica
+  // donde teoria y practica caen en los mismos días)
+  const seen = new Set();
+  const finalDates = expectedDates.filter(d => {
+    const t = d.getTime();
+    if (seen.has(t)) return false;
+    seen.add(t);
+    return true;
+  });
 
-  // También se pueden chequear aquí días huérfanos que el alumno sí asistió
-  
   finalDates.sort((a, b) => a - b);
   return finalDates;
 }
