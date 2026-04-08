@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Mail, Loader2, Lock, UserPlus, LogIn, AlertTriangle, CheckCircle2, KeyRound } from 'lucide-react'
+import { Mail, Loader2, Lock, UserPlus, LogIn, CheckCircle2, KeyRound } from 'lucide-react'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -58,12 +58,7 @@ export default function LoginPage() {
     }
   }
 
-  // Bypass para emergencias
-  const handleBypass = () => {
-    document.cookie = `demo_bypass=true; path=/; max-age=7200;`
-    document.cookie = `demo_user=1000ideasdigitales@gmail.com; path=/; max-age=7200;`
-    window.location.href = '/docente/catedras'
-  }
+
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
@@ -219,16 +214,7 @@ export default function LoginPage() {
                 </button>
               )}
 
-              <div className="pt-6 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={handleBypass}
-                  className="w-full p-4 bg-amber-50 border-2 border-amber-200 rounded-2xl text-amber-700 flex items-center justify-center gap-3 hover:bg-amber-100 transition-all text-xs font-black shadow-sm"
-                >
-                  <AlertTriangle className="w-5 h-5" />
-                  ACCESO MAESTRO (PARA LA DEMO)
-                </button>
-              </div>
+
             </div>
           </div>
         </div>
