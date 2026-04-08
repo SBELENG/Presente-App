@@ -350,17 +350,18 @@ function AttendanceTable({ label, fechas, alumnos, asistencias, clases, requerid
   const validasProyectadas = fechas.filter(f => !isExc(f))
 
   const calcPct = (alumnoId) => {
-    // MATEMÁTICA REAL: (Asistencias Totales) / (Clases Dictadas y Válidas)
-    const validasTomadasCount = fechas.filter(f => !isExc(f) && getClase(f)).length
-    if (validasTomadasCount === 0) return null
+    // MATEMÁTICA ACUMULATIVA: (Presentes) / (Total fechas programadas del curso)
+    // El denominador es SIEMPRE el total del curso (ej. 15), no solo las clases dictadas.
+    // Así 2 presentes de 15 clases = 13%, y solo llega a 100% con los 15 presentes.
+    const totalFechasCurso = validasProyectadas.length // todas las fechas válidas (sin excepciones)
+    if (totalFechasCurso === 0) return null
     
-    // Contamos solo las asistencias que corresponden a fechas válidas tomadas en esta vista
     const presentesCount = fechas.filter(f => {
       if (isExc(f) || !getClase(f)) return false
       return getStatus(alumnoId, f) === 'presente'
     }).length
     
-    return Math.round((presentesCount / validasTomadasCount) * 100)
+    return Math.round((presentesCount / totalFechasCurso) * 100)
   }
 
   if (!fechas.length) return null
@@ -417,11 +418,11 @@ function AttendanceTable({ label, fechas, alumnos, asistencias, clases, requerid
             const faltas = validasTomadasCount - presentes // Todo lo que no es presente, es falta en una clase dictada
 
             // Cálculo predictivo
-            const validasProyectadas = fechas.filter(f => !isExc(f)).length
+            const totalProyectadasRow = validasProyectadas.length // total del curso (sin excepciones)
             const validasTomadas = tomadas.filter(f => !isExc(f)).length
-            const clasesRestantes = validasProyectadas - validasTomadas
+            const clasesRestantes = totalProyectadasRow - validasTomadas
             const maxPosibles = presentes + clasesRestantes
-            const necesarios = Math.ceil(validasProyectadas * (requerido / 100))
+            const necesarios = Math.ceil(totalProyectadasRow * (requerido / 100))
             const cannotPass = maxPosibles < necesarios
 
             return (
@@ -460,16 +461,16 @@ function AttendanceTable({ label, fechas, alumnos, asistencias, clases, requerid
                       ? <span className="text-[10px] text-muted/40">—</span>
                       : <span className={`text-sm font-black ${pctOk ? 'text-success' : 'text-danger'}`}>{pct}%</span>
                     }
-                    {cannotPass && validasProyectadas.length > 0 && (
+                    {cannotPass && totalProyectadasRow > 0 && (
                       <AlertTriangle className="w-3.5 h-3.5 text-danger animate-pulse" />
                     )}
                     
-                    {cannotPass && validasProyectadas.length > 0 && (
+                    {cannotPass && totalProyectadasRow > 0 && (
                       <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 opacity-0 group-hover/alert:opacity-100 transition-opacity whitespace-nowrap">
                         <div className="bg-danger text-white text-[10px] rounded-lg px-3 py-2 shadow-xl text-center">
                           <p className="font-bold border-b border-white/20 pb-1 mb-1">Riesgo Académico</p>
                           <p>Incluso asistiendo perfecto a las {clasesRestantes} clases que faltan,</p>
-                          <p>solo llegaría a un {Math.round((maxPosibles / validasProyectadas.length) * 100)}% (requiere {requerido}%).</p>
+                          <p>solo llegaría a un {Math.round((maxPosibles / totalProyectadasRow) * 100)}% (requiere {requerido}%).</p>
                         </div>
                       </div>
                     )}
