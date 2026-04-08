@@ -50,7 +50,7 @@ export default function StudentDashboardPage() {
       // Fetch classes
       const { data: classes } = await supabase
         .from('clases')
-        .select('id, estado_clase')
+        .select('id, fecha, estado_clase')   // 'fecha' necesario para identificar excepciones
         .eq('catedra_id', insc.catedra_id)
       
       // Fetch attendance
