@@ -227,28 +227,34 @@ export default function StudentCatedraDetailPage() {
                      Historial de Firmas
                   </h3>
                   <div className="space-y-3">
-                     {classes.slice(-8).reverse().map((clase) => {
-                        const status = attendances.find(a => a.clase_id === clase.id)?.estado || 'ausente'
-                        const isException = clase.estado_clase !== 'normal'
-                        return (
-                          <div key={clase.id} className="flex items-center justify-between p-4 bg-background/50 border border-border/50 rounded-2xl">
-                             <div className="flex items-center gap-3">
-                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                                   status === 'presente' ? 'bg-success/10 text-success' : isException ? 'bg-muted/10 text-muted' : 'bg-danger/10 text-danger'
-                                }`}>
-                                   {status === 'presente' ? <Check className="w-4 h-4" /> : isException ? <Minus className="w-4 h-4" /> : <XIcon className="w-4 h-4" />}
+                     {classes
+                        .filter(c => {
+                           const today = new Date().toISOString().split('T')[0]
+                           return c.fecha <= today && c.estado_clase === 'normal'
+                        })
+                        .sort((a, b) => b.fecha.localeCompare(a.fecha))
+                        .slice(0, 8)
+                        .map((clase) => {
+                           const status = attendances.find(a => a.clase_id === clase.id)?.estado || 'ausente'
+                           return (
+                             <div key={clase.id} className="flex items-center justify-between p-4 bg-background/50 border border-border/50 rounded-2xl">
+                                <div className="flex items-center gap-3">
+                                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                                      status === 'presente' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'
+                                   }`}>
+                                      {status === 'presente' ? <Check className="w-4 h-4" /> : <XIcon className="w-4 h-4" />}
+                                   </div>
+                                   <div className="leading-tight">
+                                      <p className="text-sm font-bold text-foreground">{clase.tema || 'Clase Dictada'}</p>
+                                      <p className="text-[10px] text-muted">{new Date(clase.fecha + 'T12:00:00').toLocaleDateString('es-AR', { dateStyle: 'long' })}</p>
+                                   </div>
                                 </div>
-                                <div className="leading-tight">
-                                   <p className="text-sm font-bold text-foreground">{clase.tema || 'Clase Dictada'}</p>
-                                   <p className="text-[10px] text-muted">{new Date(clase.fecha).toLocaleDateString('es-AR', { dateStyle: 'long' })}</p>
-                                </div>
+                                <span className={`text-[10px] font-bold uppercase ${status === 'presente' ? 'text-success' : 'text-danger'}`}>
+                                   {status}
+                                </span>
                              </div>
-                             <span className="text-[10px] font-bold uppercase text-muted">
-                                {isException ? clase.estado_clase : status}
-                             </span>
-                          </div>
-                        )
-                     })}
+                           )
+                        })}
                   </div>
                </div>
 
