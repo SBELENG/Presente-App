@@ -64,10 +64,12 @@ export default function QRProyectarPage({ params }) {
     
     setCatedra(cat)
 
-    // Check for today's class or create it
-    const tzDate = new Date()
-    const offset = tzDate.getTimezoneOffset()
-    const today = new Date(tzDate.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0]
+    // Usamos Intl.DateTimeFormat con timezone explícito de Argentina
+    // para evitar que el servidor o un dispositivo en otra zona horaria
+    // genere clases con fecha incorrecta.
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Argentina/Buenos_Aires'
+    }).format(new Date())
     
     const { data: existingClase } = await supabase
       .from('clases')

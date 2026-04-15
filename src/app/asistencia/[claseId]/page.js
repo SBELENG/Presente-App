@@ -46,16 +46,16 @@ export default function AsistenciaPublicaPage({ params }) {
     }
 
     // --- LÓGICA DE QR PERMANENTE (INTUITIVA) ---
-    // Si el QR escaneado pertenece a una fecha distinta a HOY, 
-    // redirigimos la asistencia a la clase de HOY de la misma cátedra.
-    const tzDate = new Date()
-    const offset = tzDate.getTimezoneOffset()
-    const today = new Date(tzDate.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0]
+    // Usamos Intl.DateTimeFormat con timezone explícito de Argentina
+    // para evitar errores si el dispositivo tiene otra zona horaria configurada.
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Argentina/Buenos_Aires'
+    }).format(new Date())
 
     if (claseData.fecha !== today) {
-      console.log(`QR antiguo detectado (${claseData.fecha}). Redirigiendo a sesión de hoy (${today})...`)
+      console.log(`QR de otra fecha detectado (${claseData.fecha}). Buscando clase de hoy (${today})...`)
       
-      // 1. Buscamos si ya existe una clase para hoy
+      // Buscamos si ya existe una clase para hoy creada por el docente
       const { data: todayClase } = await supabase
         .from('clases')
         .select('*, catedras(*)')
@@ -64,26 +64,21 @@ export default function AsistenciaPublicaPage({ params }) {
         .single()
       
       if (todayClase) {
+        // Redirigir a la clase de hoy
         router.replace(`/asistencia/${todayClase.id}`)
         return
       } else {
-        // 2. Si no existe, la creamos "on-the-fly"
-        const { data: newClase, error: createErr } = await supabase
-          .from('clases')
-          .insert({
-            catedra_id: claseData.catedra_id,
-            fecha: today,
-            tipo: claseData.tipo || 'teorico_practica',
-            tema: `Clase del ${today} (vía QR permanente)`,
-            estado_clase: 'normal'
-          })
-          .select('*, catedras(*)')
-          .single()
-        
-        if (!createErr && newClase) {
-          router.replace(`/asistencia/${newClase.id}`)
-          return
-        }
+        // No existe clase para hoy: el docente no abrió sesión todavía.
+        // NO intentamos crear la clase desde el lado del alumno (RLS lo bloquearía)
+        // → Mostramos error claro para que el alumno avise al docente.
+        setStatus('error')
+        setErrorMsg(
+          `Este QR corresponde a la clase del ${claseData.fecha}. ` +
+          `No hay una sesión activa para hoy (${today}). ` +
+          `Pedile al docente que abra la sesión desde el sistema.`
+        )
+        setLoading(false)
+        return
       }
     }
 
