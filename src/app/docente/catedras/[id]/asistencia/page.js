@@ -44,15 +44,19 @@ function generarFechas(fechaInicio, fechaFin, diasSemana = []) {
 }
 
 function fmtCorto(d) {
-  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  return `${day}/${month}`
 }
 
 function fmtLargo(d) {
-  return d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }
+  return d.toLocaleDateString('es-AR', options)
 }
 
 function letraDia(d) {
-  return d.toLocaleDateString('es-AR', { weekday: 'short' })[0].toUpperCase()
+  const dias = ['D', 'L', 'M', 'X', 'J', 'V', 'S']
+  return dias[d.getDay()]
 }
 
 // ─── Tipos de excepción ─────────────────────────────────────────────────────
@@ -64,6 +68,37 @@ const EXCEPCIONES = [
   { value: 'paro',       label: 'Paro / Huelga',  color: 'text-accent',   bg: 'bg-accent/10',   desc: 'Medida de fuerza docente' },
   { value: 'suspension', label: 'Suspensión',    color: 'text-muted',    bg: 'bg-muted/10',    desc: 'Suspensión por otro motivo' },
 ]
+
+// ─── Error Fallback ──────────────────────────────────────────────────────────
+
+function ErrorFallback({ error, reset }) {
+  return (
+    <div className="p-12 text-center bg-red-50 border-2 border-red-100 rounded-3xl animate-fade-in">
+      <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <AlertTriangle className="w-8 h-8 text-red-600" />
+      </div>
+      <h2 className="text-xl font-bold text-red-900 mb-2">Hubo un error al cargar la planilla</h2>
+      <p className="text-sm text-red-700/70 mb-6 max-w-sm mx-auto">
+        Esto puede deberse a un problema de memoria en el celular o un dato no reconocido.
+        Error: {error?.message || 'Excepción del cliente'}
+      </p>
+      <div className="flex flex-col gap-3 max-w-xs mx-auto">
+        <button
+          onClick={() => window.location.reload()}
+          className="px-6 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all font-sans"
+        >
+          Recargar Página
+        </button>
+        <Link
+          href={`/docente/catedras`}
+          className="text-sm text-red-600 font-bold hover:underline"
+        >
+          Volver a mis cátedras
+        </Link>
+      </div>
+    </div>
+  )
+}
 
 // ─── Exceptions Panel ─────────────────────────────────────────────────────────
 
@@ -537,7 +572,14 @@ export default function AsistenciaDetallePage({ params }) {
 
   const supabase = createClient()
 
-  useEffect(() => { fetchData() }, [id])
+  const [pageError, setPageError] = useState(null)
+
+  useEffect(() => { 
+    fetchData().catch(err => {
+      console.error("Critical fetch error:", err)
+      setPageError(err)
+    })
+  }, [id])
 
   const fetchData = async () => {
     setLoading(true)
@@ -803,7 +845,7 @@ export default function AsistenciaDetallePage({ params }) {
           comColor: com.color,
         })
       })
-      const sinCom = filteredAlumnos.filter(a => !getComisionAlumno(a.apellido_estudiante, comisiones))
+      const sinCom = filteredAlumnos.filter(a => !getComisionAlumno(a, comisiones))
       if (sinCom.length > 0 && fechasPractica.length > 0) {
         result.push({
           id: 'practica_otros',
@@ -873,6 +915,8 @@ export default function AsistenciaDetallePage({ params }) {
     })
     return [...map.values()].sort((a, b) => a - b)
   }, [tabs])
+
+  if (pageError) return <div className="p-8 lg:p-12"><ErrorFallback error={pageError} /></div>
 
   if (loading) return (
     <div className="p-16 text-center">
@@ -1149,7 +1193,7 @@ export default function AsistenciaDetallePage({ params }) {
       )}
 
       <div className="mt-8 text-center text-[10px] text-muted/30 font-mono uppercase tracking-[0.2em] pb-12">
-        Build: 2026-03-26-1230 · Manual Attendance Entry Active
+        Build: 2026-04-22-1420 · Hydration Fix Active
       </div>
     </div>
   )

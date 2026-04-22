@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual Docente - Sistema Presente</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+        
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1e40af;
+            --accent: #10b981;
+            --bg: #f8fafc;
+            --text: #1e293b;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 40px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 50px;
+            border-radius: 30px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 40px;
+            border-bottom: 3px solid var(--primary);
+            padding-bottom: 20px;
+        }
+
+        .logo {
+            width: 60px;
+            height: 60px;
+            background: var(--primary);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 800;
+            font-size: 24px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 32px;
+            font-weight: 800;
+            color: var(--primary-dark);
+            text-transform: uppercase;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        .card {
+            background: #f1f5f9;
+            padding: 20px;
+            border-radius: 20px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .tutorial-section {
+            margin-top: 50px;
+            padding-top: 30px;
+            border-top: 2px dashed #e2e8f0;
+        }
+
+        .tutorial-step {
+            margin-bottom: 40px;
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 25px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .tutorial-step img {
+            width: 100%;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+        }
+
+        .tutorial-step h4 {
+            margin: 0 0 10px 0;
+            color: var(--primary);
+            font-size: 20px;
+        }
+
+        @media print {
+            body { padding: 0; }
+            .container { box-shadow: none; border: none; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <div class="logo">P</div>
+        <div>
+            <h1>Presente v2.0</h1>
+            <div style="font-size: 18px; color: #64748b; font-weight: 600;">Manual de Buenas Prácticas y Guía Visual</div>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h3 style="color: var(--primary);">✅ Registro Exitoso</h3>
+            <ul>
+                <li>DNI sin puntos ni espacios en Excel.</li>
+                <li>Email institucional verificado.</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h3 style="color: var(--primary);">⚙️ Configuración</h3>
+            <ul>
+                <li>Días de clase marcados siempre.</li>
+                <li>Bloques horarios completos.</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="tutorial-section">
+        <h2 style="text-align: center; color: var(--primary-dark); margin-bottom: 30px;">📸 Tutorial Paso a Paso</h2>
+        
+        <div class="tutorial-step">
+            <h4>1. Acceso al Dashboard</h4>
+            <img src="file:///C:/Users/Lionel/.gemini/antigravity/brain/68c13041-05e1-41b8-94ea-c89a7ad09c39/.tempmediaStorage/media_68c13041-05e1-41b8-94ea-c89a7ad09c39_1776526807047.png" alt="Dashboard">
+            <p>Una vez que ingresas, verás tus cátedras activas. Solo haz clic en la materia que deseas gestionar para entrar al panel de control específico.</p>
+        </div>
+
+        <div class="tutorial-step">
+            <h4>2. Revisión de Alumnos</h4>
+            <img src="file:///C:/Users/Lionel/.gemini/antigravity/brain/68c13041-05e1-41b8-94ea-c89a7ad09c39/.tempmediaStorage/media_68c13041-05e1-41b8-94ea-c89a7ad09c39_1776527372574.png" alt="Alumnos">
+            <p>En el menú "Listado de Alumnos" puedes verificar quiénes están inscriptos. Es fundamental que los DNI estén cargados correctamente para que el escaneo QR funcione.</p>
+        </div>
+
+        <div class="tutorial-step">
+            <h4>3. Toma de Asistencia QR</h4>
+            <img src="file:///C:/Users/Lionel/.gemini/antigravity/brain/68c13041-05e1-41b8-94ea-c89a7ad09c39/.tempmediaStorage/media_68c13041-05e1-41b8-94ea-c89a7ad09c39_1776527417168.png" alt="Proyectar QR">
+            <p>El sistema genera un código QR dinámico. Proyectalo al inicio de la clase; el alumno escanea y su registro de asistencia queda guardado en la nube al instante.</p>
+        </div>
+
+        <div class="tutorial-step">
+            <h4>4. Prevención de Errores</h4>
+            <img src="file:///C:/Users/Lionel/.gemini/antigravity/brain/68c13041-05e1-41b8-94ea-c89a7ad09c39/.tempmediaStorage/media_68c13041-05e1-41b8-94ea-c89a7ad09c39_1776527582185.png" alt="Configuración">
+            <p>En la pestaña "Configuración", asegúrate de que los días de clase y períodos estén definidos. Esto garantiza que el dashboard de estadísticas funcione sin errores.</p>
+        </div>
+    </div>
+
+    <div style="text-align: center; margin-top: 40px; color: #94a3b8; font-size: 14px;">
+        © 2026 UNRC - Facultad de Ciencias Humanas | Gestión Inteligente de Asistencia
+    </div>
+</div>
+
+</body>
+</html>
