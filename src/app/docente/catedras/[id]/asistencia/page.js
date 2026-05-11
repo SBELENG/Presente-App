@@ -386,9 +386,8 @@ function AttendanceTable({ label, fechas, alumnos, asistencias, clases, requerid
 
   const calcPct = (alumnoId) => {
     // MATEMÁTICA ACUMULATIVA: (Presentes) / (Total fechas programadas del curso)
-    // El denominador es SIEMPRE el total del curso (ej. 15), no solo las clases dictadas.
-    // Así 2 presentes de 15 clases = 13%, y solo llega a 100% con los 15 presentes.
-    const totalFechasCurso = validasProyectadas.length // todas las fechas válidas (sin excepciones)
+    // El porcentaje crece a medida que el alumno asiste a clases.
+    const totalFechasCurso = validasProyectadas.length 
     if (totalFechasCurso === 0) return null
     
     const presentesCount = fechas.filter(f => {
@@ -458,7 +457,11 @@ function AttendanceTable({ label, fechas, alumnos, asistencias, clases, requerid
             const clasesRestantes = totalProyectadasRow - validasTomadas
             const maxPosibles = presentes + clasesRestantes
             const necesarios = Math.ceil(totalProyectadasRow * (requerido / 100))
-            const cannotPass = maxPosibles < necesarios
+            
+            // Solo activar la alerta si ya se dictaron al menos 3 clases válidas (evita falsos positivos al inicio del cuatrimestre)
+            const isLibre = validasTomadas >= 3 && maxPosibles < necesarios
+            const isAtLimit = validasTomadas >= 3 && !isLibre && maxPosibles === necesarios
+            const cannotPass = isLibre || isAtLimit
 
             return (
               <tr key={a.id} className="hover:bg-surface-hover/25 transition-colors group">
@@ -496,16 +499,30 @@ function AttendanceTable({ label, fechas, alumnos, asistencias, clases, requerid
                       ? <span className="text-[10px] text-muted/40">—</span>
                       : <span className={`text-sm font-black ${pctOk ? 'text-success' : 'text-danger'}`}>{pct}%</span>
                     }
-                    {cannotPass && totalProyectadasRow > 0 && (
+                    {isLibre && totalProyectadasRow > 0 && (
                       <AlertTriangle className="w-3.5 h-3.5 text-danger animate-pulse" />
+                    )}
+                    {isAtLimit && totalProyectadasRow > 0 && (
+                      <AlertTriangle className="w-3.5 h-3.5 text-warning" />
                     )}
                     
                     {cannotPass && totalProyectadasRow > 0 && (
                       <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 opacity-0 group-hover/alert:opacity-100 transition-opacity whitespace-nowrap">
-                        <div className="bg-danger text-white text-[10px] rounded-lg px-3 py-2 shadow-xl text-center">
-                          <p className="font-bold border-b border-white/20 pb-1 mb-1">Riesgo Académico</p>
-                          <p>Incluso asistiendo perfecto a las {clasesRestantes} clases que faltan,</p>
-                          <p>solo llegaría a un {Math.round((maxPosibles / totalProyectadasRow) * 100)}% (requiere {requerido}%).</p>
+                        <div className={`${isLibre ? 'bg-danger' : 'bg-warning'} text-white text-[10px] rounded-lg px-3 py-2 shadow-xl text-center`}>
+                          <p className="font-bold border-b border-white/20 pb-1 mb-1">
+                            {isLibre ? 'LIBRE POR FALTA' : 'LÍMITE DE FALTAS'}
+                          </p>
+                          {isLibre ? (
+                            <>
+                              <p>Quedó libre por falta.</p>
+                              <p>Hablar con el profesor titular.</p>
+                            </>
+                          ) : (
+                            <>
+                              <p>Ya cumplió el límite de faltas.</p>
+                              <p>No puede faltar a ninguna de las {clasesRestantes} clases restantes.</p>
+                            </>
+                          )}
                         </div>
                       </div>
                     )}
@@ -684,8 +701,13 @@ export default function AsistenciaDetallePage({ params }) {
     
     // Defensa absoluta: Agregar fechas de clases reales que Next.js caché pudo haber forzado un día fuera de calendario
     // Pero SOLO si tienen asistencias o son estado normal (no feriados ruidosos en días off)
+    // IMPORTANTE: Nunca agregar domingos (getDay() === 0) para evitar días inválidos en el registro
     clases.forEach(c => {
       const dbDate = new Date(c.fecha + 'T12:00:00')
+      
+      // Bloqueo absoluto de domingos
+      if (dbDate.getDay() === 0) return
+
       const hasAttendance = asistencias.some(a => a.clase_id === c.id)
       const isManualNormal = c.estado_clase === 'normal'
       
@@ -766,8 +788,10 @@ export default function AsistenciaDetallePage({ params }) {
     })
     
     // Defensa absoluta para comisiones: incluir las clases grabadas reales
+    // IMPORTANTE: nunca agregar domingos
     clases.forEach(c => {
       const dbDate = new Date(c.fecha + 'T12:00:00')
+      if (dbDate.getDay() === 0) return // bloqueo de domingos
       if (!resultado.some(fecha => fecha.getTime() === dbDate.getTime())) {
         resultado.push(dbDate)
       }
@@ -1099,92 +1123,97 @@ export default function AsistenciaDetallePage({ params }) {
       
       {/* Manual Attendance Entry Modal */}
       {showManualAttendance && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-surface border border-border w-full max-w-md rounded-3xl shadow-2xl animate-scale-in">
-            <div className="p-6 border-b border-border flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold">Ingreso Manual de Asistencia</h2>
-                <p className="text-xs text-muted mt-1">Registrá la presencia de un alumno en una fecha específica.</p>
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowManualAttendance(false) }}
+        >
+          <div className="bg-surface border border-border w-full max-w-sm rounded-2xl shadow-2xl animate-scale-in">
+            {/* Header compacto */}
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <Pencil className="w-4 h-4 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-foreground">Ingreso Manual</h2>
+                  <p className="text-[10px] text-muted">Registrá asistencia para cualquier fecha</p>
+                </div>
               </div>
               <button 
                 onClick={() => setShowManualAttendance(false)}
-                className="w-8 h-8 rounded-full bg-surface-hover flex items-center justify-center"
+                className="w-7 h-7 rounded-lg bg-surface-hover flex items-center justify-center hover:bg-danger/10 transition-colors"
               >
-                <XIcon className="w-4 h-4 text-muted" />
+                <XIcon className="w-3.5 h-3.5 text-muted" />
               </button>
             </div>
             
-            <form onSubmit={handleManualAttendanceSubmit} className="p-6 space-y-5">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-muted uppercase">Alumno</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-                  <select
-                    required
-                    value={manualAttendance.alumnoId}
-                    onChange={e => setManualAttendance({...manualAttendance, alumnoId: e.target.value})}
-                    className="w-full pl-10 pr-4 py-2.5 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/50 outline-none appearance-none text-sm"
-                  >
-                    <option value="">Seleccioná un alumno...</option>
-                    {alumnos.map(a => (
-                      <option key={a.id} value={a.id}>{a.apellido_estudiante}, {a.nombre_estudiante} ({a.dni_estudiante})</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-muted uppercase">Fecha de la Clase</label>
+            <form onSubmit={handleManualAttendanceSubmit} className="px-5 py-4 space-y-4">
+              {/* Alumno */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-muted uppercase tracking-wider">Alumno</label>
                 <select
                   required
-                  value={manualAttendance.fecha}
-                  onChange={e => setManualAttendance({...manualAttendance, fecha: e.target.value})}
-                  className="w-full px-4 py-2.5 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/50 outline-none text-sm"
+                  value={manualAttendance.alumnoId}
+                  onChange={e => setManualAttendance({...manualAttendance, alumnoId: e.target.value})}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/50 outline-none text-sm"
                 >
-                  <option value="">Seleccioná una fecha...</option>
-                  {allFechas.map((f, i) => (
-                    <option key={i} value={f.toISOString().split('T')[0]}>
-                      {f.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
-                    </option>
+                  <option value="">Seleccioná un alumno...</option>
+                  {alumnos.map(a => (
+                    <option key={a.id} value={a.id}>{a.apellido_estudiante}, {a.nombre_estudiante}</option>
                   ))}
                 </select>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-muted uppercase">Estado</label>
+              {/* Fecha — input libre para permitir cualquier fecha */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-muted uppercase tracking-wider">Fecha de la Clase</label>
+                <input
+                  type="date"
+                  required
+                  value={manualAttendance.fecha}
+                  onChange={e => setManualAttendance({...manualAttendance, fecha: e.target.value})}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/50 outline-none text-sm"
+                />
+                <p className="text-[9px] text-muted/60">Podés ingresar cualquier fecha, incluso si no está en el cronograma.</p>
+              </div>
+
+              {/* Estado */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-muted uppercase tracking-wider">Estado</label>
                 <div className="flex gap-2">
                   {['presente', 'ausente'].map(est => (
                     <button
                       key={est}
                       type="button"
                       onClick={() => setManualAttendance({...manualAttendance, estado: est})}
-                      className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all capitalize ${
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition-all capitalize ${
                         manualAttendance.estado === est 
                           ? est === 'presente' ? 'bg-success/10 border-success text-success' : 'bg-danger/10 border-danger text-danger'
                           : 'border-border text-muted hover:border-border-hover'
                       }`}
                     >
-                      {est}
+                      {est === 'presente' ? '✓ Presente' : '✗ Ausente'}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="pt-4 flex gap-3">
+              {/* Botones */}
+              <div className="flex gap-2 pt-1">
                 <button
                   type="button"
                   onClick={() => setShowManualAttendance(false)}
-                  className="flex-1 py-3 bg-surface border border-border rounded-2xl font-bold text-sm hover:bg-surface-hover transition-colors"
+                  className="flex-1 py-2.5 bg-surface border border-border rounded-xl font-bold text-xs hover:bg-surface-hover transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={savingManual}
-                  className="flex-1 py-3 bg-primary text-white rounded-2xl font-bold text-sm shadow-xl shadow-primary/25 flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 bg-primary text-white rounded-xl font-bold text-xs shadow-lg shadow-primary/20 flex items-center justify-center gap-1.5 hover:bg-primary-dark transition-colors disabled:opacity-60"
                 >
-                  {savingManual ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Guardar Asistencia
+                  {savingManual ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  Guardar
                 </button>
               </div>
             </form>
@@ -1193,7 +1222,7 @@ export default function AsistenciaDetallePage({ params }) {
       )}
 
       <div className="mt-8 text-center text-[10px] text-muted/30 font-mono uppercase tracking-[0.2em] pb-12">
-        Build: 2026-04-22-1420 · Hydration Fix Active
+        Build: 2026-05-11-1324 · Fixed % (Cumulative) + Modal + Config + Sunday
       </div>
     </div>
   )

@@ -147,10 +147,12 @@ export default function EstadisticasCatedraPage({ params }) {
            return dbClase && dbClase.estado_clase === 'normal'
         }).length
         
-        const attPct = validasTomadasCount > 0 ? (presents / validasTomadasCount) * 100 : 100
+        const attPct = totalClassesCount > 0 ? (presents / totalClassesCount) * 100 : 0
         
-        const isPredictiveRisk = absences === maxAbsencesAllowed && maxAbsencesAllowed > 0
-        const isAlreadyLibreByAbsences = absences > maxAbsencesAllowed
+        // Guard: Solo alertar si ya hubo al menos 3 clases válidas dictadas
+        const canAlert = validasTomadasCount >= 3
+        const isPredictiveRisk = canAlert && absences === maxAbsencesAllowed && maxAbsencesAllowed > 0
+        const isAlreadyLibreByAbsences = canAlert && absences > maxAbsencesAllowed
 
         // Notas
         const studentGrades = {}
@@ -182,7 +184,7 @@ export default function EstadisticasCatedraPage({ params }) {
             att: attPct,
             absences: absences,
             maxAbs: maxAbsencesAllowed,
-            status: isAlreadyLibreByAbsences ? { label: 'LIBRE POR FALTAS', key: 'LIBRE' } : status,
+            status: isAlreadyLibreByAbsences ? { label: 'LIBRE POR FALTA', key: 'LIBRE' } : (isPredictiveRisk ? { label: 'LÍMITE DE FALTAS', key: 'REGULAR' } : status),
             isPredictive: isPredictiveRisk
           })
         }
@@ -381,12 +383,10 @@ export default function EstadisticasCatedraPage({ params }) {
                     <span className={s.absences >= s.maxAbs ? 'text-danger font-bold' : ''}>Faltas: {s.absences} de {s.maxAbs} permitidas</span>
                     <span className={s.status.key === 'LIBRE' ? 'text-danger font-bold' : ''}>Estado: {s.status.label}</span>
                   </div>
-                  {s.isPredictive && (
                     <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-danger/10 text-[9px] font-black text-danger uppercase animate-pulse">
                       <AlertCircle className="w-3 h-3" />
-                      Margen 0: Próxima falta Libre
+                      {s.status.key === 'LIBRE' ? 'Hablar con profesor titular' : 'Próxima falta Libre'}
                     </div>
-                  )}
                 </div>
                 <div className={`w-3 h-3 rounded-full ${s.status.key === 'LIBRE' || s.isPredictive ? 'bg-danger animate-ping' : 'bg-warning'}`} />
               </div>

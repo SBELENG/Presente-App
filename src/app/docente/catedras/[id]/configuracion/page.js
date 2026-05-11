@@ -185,12 +185,35 @@ export default function ConfigCatedraPage({ params }) {
                 </select>
               </div>
             </div>
+
+            <div className="pt-4 border-t border-border">
+              <label className="block text-sm font-bold text-foreground mb-3">Tipo de clase</label>
+              <div className="flex gap-3 flex-wrap">
+                {[{v:'teorica',l:'Teórica'},{v:'practica',l:'Práctica'},{v:'teorico_practica',l:'Teórico-práctica'}].map(opt=>(
+                  <button key={opt.v} type="button" onClick={() => updateForm('tipo_clase', opt.v)} className={`px-4 py-2.5 rounded-xl text-sm font-bold border transition-all ${form.tipo_clase === opt.v || (Array.isArray(form.tipo_clase) && form.tipo_clase.includes(opt.v)) ? 'bg-primary text-white border-primary shadow-lg' : 'bg-background text-muted border-border'}`}>{opt.l}</button>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
 
         {/* Section: Calendario y Días */}
         <section className="bg-surface border border-border rounded-3xl p-6 md:p-8">
-          <h2 className="text-lg font-bold text-foreground mb-6">Calendario y Días de Cursada</h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-bold text-foreground">Calendario y Días de Cursada</h2>
+            {(form.tipo_clase?.includes('practica') || form.tipo_clase?.includes('teorico_practica') || form.tipo_clase === 'practica' || form.tipo_clase === 'teorico_practica') && (
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-muted uppercase">¿Prácticas Rotativas?</span>
+                <button 
+                  type="button"
+                  onClick={() => updateForm('agenda_rota_practicas', !form.agenda_rota_practicas)}
+                  className={`w-10 h-5 rounded-full transition-colors relative ${form.agenda_rota_practicas ? 'bg-accent' : 'bg-muted/30'}`}
+                >
+                  <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${form.agenda_rota_practicas ? 'right-0.5' : 'left-0.5'}`} />
+                </button>
+              </div>
+            )}
+          </div>
           <div className="space-y-5">
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -212,8 +235,15 @@ export default function ConfigCatedraPage({ params }) {
                 ))}
               </div>
             </div>
-            {form.agenda_rota_practicas && (
-              <>
+            {(form.tipo_clase?.includes('practica') || form.tipo_clase?.includes('teorico_practica') || form.tipo_clase === 'practica' || form.tipo_clase === 'teorico_practica') && (
+              <div className="pt-6 mt-6 border-t border-border space-y-6">
+                <div className="flex items-center justify-between p-4 bg-accent/5 border border-accent/20 rounded-2xl">
+                  <div>
+                    <h3 className="text-sm font-bold text-accent uppercase">Configuración de Prácticas</h3>
+                    <p className="text-[10px] text-muted">Habilitá rangos distintos o agenda rotativa para las prácticas.</p>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-muted uppercase mb-2">Inicio Práctica</label>
@@ -224,10 +254,11 @@ export default function ConfigCatedraPage({ params }) {
                     <input type="date" value={form.fecha_fin_practica || ''} onChange={e => updateForm('fecha_fin_practica', e.target.value)} className="w-full px-4 py-2.5 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm" />
                   </div>
                 </div>
+
                 <div>
                   <label className="block text-xs font-bold text-accent uppercase mb-2">
                     Días de Práctica
-                    <span className="text-muted normal-case font-normal ml-2">(vacío = semana completa Lun–Sab)</span>
+                    {form.agenda_rota_practicas && <span className="text-muted normal-case font-normal ml-2">(vacío = semana completa Lun–Sab)</span>}
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {[{v:'lunes',l:'L'},{v:'martes',l:'M'},{v:'miercoles',l:'X'},{v:'jueves',l:'J'},{v:'viernes',l:'V'},{v:'sabado',l:'S'}].map(d => (
@@ -237,13 +268,15 @@ export default function ConfigCatedraPage({ params }) {
                     ))}
                   </div>
                   <p className="text-[10px] text-muted mt-1.5">
-                    {(form.dias_practica || []).length === 0
+                    {form.agenda_rota_practicas && (form.dias_practica || []).length === 0
                       ? '⚡ Con prácticas de semana completa, dejá esto vacío (Lun-Sab habilitados automáticamente)'
-                      : (form.dias_practica || []).map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')
+                      : (form.dias_practica || []).length > 0 
+                        ? (form.dias_practica || []).map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')
+                        : 'Seleccioná los días en que se dictan las prácticas'
                     }
                   </p>
                 </div>
-              </>
+              </div>
             )}
           </div>
         </section>
