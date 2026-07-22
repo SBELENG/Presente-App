@@ -726,7 +726,11 @@ export default function AsistenciaDetallePage({ params }) {
     fP.sort((a, b) => a - b)
 
     const split = fT.length > 0 && fP.length > 0
-    return { fechasTeoria: fT, fechasPractica: fP, hasSplit: split, diasPracticaGlobal: diasPractica, esTeo, esPrac }
+
+    const vDates = [...fT, ...fP].map(d => d.toISOString().split('T')[0])
+    const uniqueValidDates = [...new Set(vDates)].sort((a, b) => b.localeCompare(a))
+
+    return { fechasTeoria: fT, fechasPractica: fP, hasSplit: split, diasPracticaGlobal: diasPractica, esTeo, esPrac, uniqueValidDates }
   }, [catedra, clases, asistencias])
 
   // ── Filter alumnos ─────────────────────────────────────────────────────────
@@ -1147,49 +1151,68 @@ export default function AsistenciaDetallePage({ params }) {
               </button>
             </div>
             
-            <form onSubmit={handleManualAttendanceSubmit} className="px-5 py-4 space-y-4">
-              {/* Alumno */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-muted uppercase tracking-wider">Alumno</label>
-                <select
-                  required
-                  value={manualAttendance.alumnoId}
-                  onChange={e => setManualAttendance({...manualAttendance, alumnoId: e.target.value})}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/50 outline-none text-sm"
-                >
-                  <option value="">Seleccioná un alumno...</option>
-                  {alumnos.map(a => (
-                    <option key={a.id} value={a.id}>{a.apellido_estudiante}, {a.nombre_estudiante}</option>
-                  ))}
-                </select>
+            <form onSubmit={handleManualAttendanceSubmit} className="px-5 py-4 space-y-5">
+              {/* Fecha (Prioridad) */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-muted uppercase tracking-wider flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5" />
+                  Fecha de la Clase
+                </label>
+                <div className="relative">
+                  <select
+                    required
+                    value={manualAttendance.fecha}
+                    onChange={e => setManualAttendance({...manualAttendance, fecha: e.target.value})}
+                    className="w-full px-3 py-2.5 bg-surface-hover/30 border border-border rounded-xl focus:ring-2 focus:ring-primary/50 outline-none text-sm font-medium transition-all appearance-none"
+                  >
+                    <option value="">Seleccione una fecha...</option>
+                    {uniqueValidDates.map(d => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                    <ChevronRight className="w-4 h-4 text-muted rotate-90" />
+                  </div>
+                </div>
               </div>
 
-              {/* Fecha — input libre para permitir cualquier fecha */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-muted uppercase tracking-wider">Fecha de la Clase</label>
-                <input
-                  type="date"
-                  required
-                  value={manualAttendance.fecha}
-                  onChange={e => setManualAttendance({...manualAttendance, fecha: e.target.value})}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/50 outline-none text-sm"
-                />
-                <p className="text-[9px] text-muted/60">Podés ingresar cualquier fecha, incluso si no está en el cronograma.</p>
+              {/* Alumno */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-muted uppercase tracking-wider flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5" />
+                  Alumno
+                </label>
+                <div className="relative">
+                  <select
+                    required
+                    value={manualAttendance.alumnoId}
+                    onChange={e => setManualAttendance({...manualAttendance, alumnoId: e.target.value})}
+                    className="w-full px-3 py-2.5 bg-surface-hover/30 border border-border rounded-xl focus:ring-2 focus:ring-primary/50 outline-none text-sm font-medium transition-all appearance-none"
+                  >
+                    <option value="">Seleccioná un alumno...</option>
+                    {alumnos.map(a => (
+                      <option key={a.id} value={a.id}>{a.apellido_estudiante}, {a.nombre_estudiante}</option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                    <ChevronRight className="w-4 h-4 text-muted rotate-90" />
+                  </div>
+                </div>
               </div>
 
               {/* Estado */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-muted uppercase tracking-wider">Estado</label>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-muted uppercase tracking-wider">Estado de Asistencia</label>
                 <div className="flex gap-2">
                   {['presente', 'ausente'].map(est => (
                     <button
                       key={est}
                       type="button"
                       onClick={() => setManualAttendance({...manualAttendance, estado: est})}
-                      className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition-all capitalize ${
+                      className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all capitalize shadow-sm ${
                         manualAttendance.estado === est 
-                          ? est === 'presente' ? 'bg-success/10 border-success text-success' : 'bg-danger/10 border-danger text-danger'
-                          : 'border-border text-muted hover:border-border-hover'
+                          ? est === 'presente' ? 'bg-success/10 border-success text-success shadow-success/20' : 'bg-danger/10 border-danger text-danger shadow-danger/20'
+                          : 'border-border text-muted hover:border-border-hover bg-surface-hover/10 hover:bg-surface-hover/30'
                       }`}
                     >
                       {est === 'presente' ? '✓ Presente' : '✗ Ausente'}

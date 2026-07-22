@@ -27,6 +27,9 @@ export default function QRProyectarPage({ params }) {
   const router = useRouter()
   const supabase = createClient()
 
+  const [validDates, setValidDates] = useState([])
+  const [selectedDate, setSelectedDate] = useState('')
+
   useEffect(() => {
     fetchData()
   }, [id])
@@ -64,18 +67,46 @@ export default function QRProyectarPage({ params }) {
     
     setCatedra(cat)
 
-    // Usamos Intl.DateTimeFormat con timezone explícito de Argentina
-    // para evitar que el servidor o un dispositivo en otra zona horaria
-    // genere clases con fecha incorrecta.
-    const today = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Argentina/Buenos_Aires'
-    }).format(new Date())
+    if (cat) {
+      // Importar dinámicamente generarFechas o calcular aquí
+      // Como no lo hemos importado arriba, lo implementamos rápido para la cátedra:
+      const dMap = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 0 }
+      const diasTeoria = (cat.dias_clase || []).map(d => dMap[d])
+      const diasPractica = (cat.dias_practica?.length > 0 ? cat.dias_practica : (cat.dias_clase || [])).map(d => dMap[d])
+      
+      const start = new Date(cat.fecha_inicio + 'T12:00:00')
+      const end = new Date(cat.fecha_fin + 'T12:00:00')
+      
+      const vDates = []
+      let curr = new Date(start)
+      while (curr <= end) {
+        const day = curr.getDay()
+        if (diasTeoria.includes(day) || diasPractica.includes(day)) {
+          vDates.push(curr.toISOString().split('T')[0])
+        }
+        curr.setDate(curr.getDate() + 1)
+      }
+      
+      // Deduplicar fechas
+      const uniqueDates = [...new Set(vDates)].sort()
+      setValidDates(uniqueDates)
+    }
+
+    setLoading(false)
+  }
+
+  const handleGenerateQR = async () => {
+    if (!selectedDate) {
+      alert("Por favor seleccioná una fecha.")
+      return
+    }
+    setLoading(true)
     
     const { data: existingClase } = await supabase
       .from('clases')
       .select('*')
       .eq('catedra_id', id)
-      .eq('fecha', today)
+      .eq('fecha', selectedDate)
       .single()
 
     if (existingClase) {
@@ -86,9 +117,9 @@ export default function QRProyectarPage({ params }) {
         .from('clases')
         .insert({
           catedra_id: id,
-          fecha: today,
+          fecha: selectedDate,
           tipo: 'teorico_practica',
-          tema: `Clase del ${today}`,
+          tema: `Clase del ${selectedDate}`,
           estado_clase: 'normal'
         })
         .select()
@@ -97,9 +128,10 @@ export default function QRProyectarPage({ params }) {
       if (!error) {
         setClase(newClase)
         fetchAttendanceCount(newClase.id)
+      } else {
+        alert("Error al crear la clase: " + error.message)
       }
     }
-
     setLoading(false)
   }
 
@@ -196,11 +228,34 @@ export default function QRProyectarPage({ params }) {
         <h1 className={`font-bold text-foreground mb-2 ${isFullscreen ? 'text-5xl mb-6' : 'text-2xl'}`}>
           {catedra?.nombre}
         </h1>
-        <p className={`text-muted mb-8 ${isFullscreen ? 'text-2xl mb-12' : 'text-sm'}`}>
-          Escaneá el código para registrar tu asistencia hoy
-        </p>
-
-        <div className={`p-8 bg-white rounded-[2rem] shadow-2xl shadow-primary/10 border border-border animate-pulse-glow ${isFullscreen ? 'scale-150' : ''}`}>
+        
+        {!clase ? (
+          <div className="bg-surface border border-border rounded-2xl p-8 max-w-md w-full mt-6 flex flex-col items-center">
+            <p className="text-sm font-medium mb-4 text-center">Seleccioná la fecha de la clase para generar el QR:</p>
+            <select 
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-border bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all mb-6"
+            >
+              <option value="">Seleccione una fecha válida...</option>
+              {validDates.map(d => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+            <button 
+              onClick={handleGenerateQR}
+              disabled={loading || !selectedDate}
+              className="w-full py-3 bg-primary text-white rounded-xl font-bold flex justify-center items-center gap-2 hover:opacity-90 disabled:opacity-50 transition-all"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Generar Código QR"}
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className={`text-muted mb-8 ${isFullscreen ? 'text-2xl mb-12' : 'text-sm'}`}>
+              Escaneá el código para registrar tu asistencia el día {clase.fecha}
+            </p>
+            <div className={`p-8 bg-white rounded-[2rem] shadow-2xl shadow-primary/10 border border-border animate-pulse-glow ${isFullscreen ? 'scale-150' : ''}`}>
           {attendanceUrl && (
             <QRCodeSVG 
               value={attendanceUrl} 
@@ -218,8 +273,11 @@ export default function QRProyectarPage({ params }) {
             />
           )}
         </div>
+          </>
+        )}
+      </div>
 
-        <div className={`mt-12 flex items-center gap-12 ${isFullscreen ? 'mt-32' : ''}`}>
+      <div className={`mt-12 w-full max-w-sm ${isFullscreen ? 'absolute bottom-12 left-12 max-w-md m-0' : ''}`}>
           <div className="flex flex-col items-center">
             <div className={`font-bold text-primary ${isFullscreen ? 'text-6xl mb-2' : 'text-3xl'}`}>
               {attendanceCount}

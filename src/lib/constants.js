@@ -35,6 +35,7 @@ export const TIPO_NOTA = {
 export const ESTADO_INSCRIPCION = {
   INSCRIPTO: 'inscripto',
   PENDIENTE: 'pendiente',
+  BAJA: 'baja',
 }
 
 export const DIAS_SEMANA = [

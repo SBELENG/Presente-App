@@ -85,15 +85,23 @@ export default function StudentCatedraDetailPage() {
   
   const projectedDates = getStudentExpectedDates(catedra, insc, classes)
   
+  let totalPresents = 0;
+  
   // A 'valid' class for the denominator is: 
   // Any session in the plan, UNLESS it exists in the DB with status !== 'normal'
   const validSessions = projectedDates.filter(dDate => {
     const fs = dDate.toISOString().split('T')[0]
     const dbClase = classes.find(c => c.fecha === fs)
-    return !dbClase || dbClase.estado_clase === 'normal'
+    const isException = dbClase && dbClase.estado_clase !== 'normal'
+    
+    if (!isException && dbClase) {
+       const hasAttended = attendances.some(a => a.clase_id === dbClase.id && a.estado === 'presente')
+       if (hasAttended) totalPresents++;
+    }
+    
+    return !isException
   })
 
-  const totalPresents = attendances.filter(a => a.estado === 'presente').length
   const dictadasValidas = classes.filter(c => c.estado_clase === 'normal')
   
   // Denominador ACUMULATIVO: total de fechas del curso completo (incluyendo futuras), sin excepciones.
@@ -232,6 +240,7 @@ export default function StudentCatedraDetailPage() {
                            const today = new Date().toISOString().split('T')[0]
                            return c.fecha <= today && c.estado_clase === 'normal'
                         })
+                        .filter((c, index, self) => index === self.findIndex((t) => t.fecha === c.fecha)) // Deduplicar por fecha
                         .sort((a, b) => b.fecha.localeCompare(a.fecha))
                         .slice(0, 8)
                         .map((clase) => {

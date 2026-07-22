@@ -55,9 +55,29 @@ export default function AlumnosPage({ params }) {
       .from('inscripciones')
       .select('*')
       .eq('catedra_id', id)
+      .neq('estado', 'baja')
       .order('apellido_estudiante', { ascending: true })
     
     setAlumnos(insc || [])
+    setLoading(false)
+  }
+
+  const [showBajas, setShowBajas] = useState(false)
+
+  const toggleBajas = async () => {
+    setLoading(true)
+    const { data: insc } = await supabase
+      .from('inscripciones')
+      .select('*')
+      .eq('catedra_id', id)
+      .order('apellido_estudiante', { ascending: true })
+    
+    if (!showBajas) {
+      setAlumnos(insc || [])
+    } else {
+      setAlumnos((insc || []).filter(a => a.estado !== 'baja'))
+    }
+    setShowBajas(!showBajas)
     setLoading(false)
   }
 
@@ -217,10 +237,31 @@ export default function AlumnosPage({ params }) {
     setSavingManual(false)
   }
 
-  const handleDelete = async (inscId) => {
-    if (!confirm('¿Seguro quieres eliminar a este alumno?')) return
-    const { error } = await supabase.from('inscripciones').delete().eq('id', inscId)
-    if (!error) fetchData()
+  const handleBaja = async (inscId, nombre) => {
+    const confirmMsg = `¿Seguro quieres dar de BAJA a ${nombre}? \n\nEsto lo ocultará de las planillas pero PRESERVARÁ su historial de asistencias y notas. \n\nNo se borrará ningún dato permanentemente.`
+    if (!confirm(confirmMsg)) return
+    
+    const { error } = await supabase
+      .from('inscripciones')
+      .update({ estado: 'baja' })
+      .eq('id', inscId)
+    
+    if (!error) {
+      setMessage({ type: 'success', text: `El alumno ${nombre} fue dado de baja.` })
+      fetchData()
+    }
+  }
+
+  const handleReactivar = async (inscId, nombre) => {
+    const { error } = await supabase
+      .from('inscripciones')
+      .update({ estado: 'inscripto' })
+      .eq('id', inscId)
+    
+    if (!error) {
+      setMessage({ type: 'success', text: `El alumno ${nombre} fue reactivado.` })
+      fetchData()
+    }
   }
 
   const filteredAlumnos = alumnos.filter(a => 
@@ -250,6 +291,13 @@ export default function AlumnosPage({ params }) {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <button 
+              onClick={toggleBajas}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all border ${showBajas ? 'bg-warning/10 border-warning text-warning' : 'bg-surface border-border text-muted hover:border-border-hover'}`}
+            >
+              <Trash2 className="w-4 h-4" />
+              {showBajas ? 'Ocultar Bajas' : 'Ver Bajas'}
+            </button>
             <label className={`cursor-pointer flex items-center gap-2 px-5 py-2.5 bg-surface border border-border rounded-xl text-sm font-semibold hover:border-primary/50 transition-all ${importing ? 'opacity-50 pointer-events-none' : ''}`}>
               <Upload className="w-4 h-4 text-primary" />
               Importar CSV/Excel
@@ -318,8 +366,11 @@ export default function AlumnosPage({ params }) {
                         <div>
                           <p className="font-bold text-foreground">
                             {a.apellido_estudiante}, {a.nombre_estudiante}
+                            {a.estado === 'baja' && <span className="ml-2 px-1.5 py-0.5 bg-danger/10 text-danger text-[10px] rounded font-black uppercase">Baja</span>}
                           </p>
-                          <p className="text-xs text-muted">Inscripto {new Date(a.created_at).toLocaleDateString()}</p>
+                          <p className="text-xs text-muted">
+                            {a.estado === 'baja' ? 'Inactivo' : `Inscripto ${new Date(a.created_at).toLocaleDateString()}`}
+                          </p>
                         </div>
                       </div>
                     </td>
@@ -331,15 +382,28 @@ export default function AlumnosPage({ params }) {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="p-2 text-muted hover:text-primary transition-colors">
-                          <FileText className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(a.id)}
-                          className="p-2 text-muted hover:text-danger transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {a.estado === 'baja' ? (
+                          <button 
+                            onClick={() => handleReactivar(a.id, `${a.apellido_estudiante}, ${a.nombre_estudiante}`)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-success/10 text-success text-[10px] font-bold rounded-lg hover:bg-success hover:text-white transition-all"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            Reactivar
+                          </button>
+                        ) : (
+                          <>
+                            <button className="p-2 text-muted hover:text-primary transition-colors">
+                              <FileText className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleBaja(a.id, `${a.apellido_estudiante}, ${a.nombre_estudiante}`)}
+                              className="p-2 text-muted hover:text-danger transition-colors"
+                              title="Dar de baja"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

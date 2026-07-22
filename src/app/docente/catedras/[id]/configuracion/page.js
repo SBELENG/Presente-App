@@ -110,9 +110,18 @@ export default function ConfigCatedraPage({ params }) {
   const scrollToBottom = () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
 
   const handleDelete = async () => {
-    if (!confirm('¿Seguro quieres eliminar esta cátedra? Se perderán todos los datos, clases, alumnos y notas asociados.')) return
-    const { error: err } = await supabase.from('catedras').delete().eq('id', id)
-    if (!err) router.push('/docente/catedras')
+    const confirmName = prompt(`¿Estás SEGURO de eliminar la cátedra "${form.nombre}"? \n\nESTA ACCIÓN ES IRREVERSIBLE Y BORRARÁ: \n- Todos los alumnos y su historial. \n- Todas las clases y firmas tomadas. \n- Todas las notas y planificaciones. \n\nPara confirmar, escribe el nombre de la cátedra a continuación:`)
+    
+    if (confirmName === form.nombre) {
+      const { error: err } = await supabase.from('catedras').delete().eq('id', id)
+      if (!err) {
+        router.push('/docente/catedras')
+      } else {
+        alert("Error al eliminar: " + err.message)
+      }
+    } else if (confirmName !== null) {
+      alert("El nombre no coincide. La cátedra NO fue eliminada.")
+    }
   }
 
   if (loading || !form) return <div className="p-12 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>

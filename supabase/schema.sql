@@ -153,17 +153,20 @@ ALTER TABLE clases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE asistencias ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notas ENABLE ROW LEVEL SECURITY;
 
--- Perfiles: users can read/update their own profile
+-- ─── PERFILES ────────────────────────────────────────────────────────────────
+-- Users can read/update their own profile
 DROP POLICY IF EXISTS "Users can view own profile" ON perfiles;
 CREATE POLICY "Users can view own profile" ON perfiles FOR SELECT USING (auth.uid() = id);
 
 DROP POLICY IF EXISTS "Users can update own profile" ON perfiles;
 CREATE POLICY "Users can update own profile" ON perfiles FOR UPDATE USING (auth.uid() = id);
 
--- Cátedras: docentes can CRUD their own
-DROP POLICY IF EXISTS "Docentes can view own catedras" ON catedras;
-CREATE POLICY "Docentes can view own catedras" ON catedras FOR SELECT USING (docente_id = auth.uid());
+-- ─── CÁTEDRAS ────────────────────────────────────────────────────────────────
+-- Public read (needed for QR attendance page + student portal)
+DROP POLICY IF EXISTS "Public can view catedras" ON catedras;
+CREATE POLICY "Public can view catedras" ON catedras FOR SELECT USING (true);
 
+-- Docentes can CRUD their own
 DROP POLICY IF EXISTS "Docentes can insert catedras" ON catedras;
 CREATE POLICY "Docentes can insert catedras" ON catedras FOR INSERT WITH CHECK (docente_id = auth.uid());
 
@@ -173,28 +176,31 @@ CREATE POLICY "Docentes can update own catedras" ON catedras FOR UPDATE USING (d
 DROP POLICY IF EXISTS "Docentes can delete own catedras" ON catedras;
 CREATE POLICY "Docentes can delete own catedras" ON catedras FOR DELETE USING (docente_id = auth.uid());
 
--- Inscripciones: docentes can manage for their cátedras
-DROP POLICY IF EXISTS "Docentes can view inscripciones" ON inscripciones;
-CREATE POLICY "Docentes can view inscripciones" ON inscripciones FOR SELECT USING (
+-- ─── INSCRIPCIONES ───────────────────────────────────────────────────────────
+-- Public read (student portal searches by DNI; QR verifies enrollment)
+DROP POLICY IF EXISTS "Public can view inscripciones" ON inscripciones;
+CREATE POLICY "Public can view inscripciones" ON inscripciones FOR SELECT USING (true);
+
+-- Anyone can insert (QR flow creates pending enrollments for unknown students)
+DROP POLICY IF EXISTS "Anyone can insert inscripcion" ON inscripciones;
+CREATE POLICY "Anyone can insert inscripcion" ON inscripciones FOR INSERT WITH CHECK (true);
+
+-- Anyone can update (needed for upsert in QR flow)
+DROP POLICY IF EXISTS "Anyone can update inscripcion for upsert" ON inscripciones;
+CREATE POLICY "Anyone can update inscripcion for upsert" ON inscripciones FOR UPDATE USING (true);
+
+-- Docentes can delete inscripciones from their cátedras
+DROP POLICY IF EXISTS "Docentes can delete inscripciones" ON inscripciones;
+CREATE POLICY "Docentes can delete inscripciones" ON inscripciones FOR DELETE USING (
   catedra_id IN (SELECT id FROM catedras WHERE docente_id = auth.uid())
 );
 
-DROP POLICY IF EXISTS "Docentes can insert inscripciones" ON inscripciones;
-CREATE POLICY "Docentes can insert inscripciones" ON inscripciones FOR INSERT WITH CHECK (
-  catedra_id IN (SELECT id FROM catedras WHERE docente_id = auth.uid())
-);
+-- ─── CLASES ──────────────────────────────────────────────────────────────────
+-- Public read (QR needs to read class to verify date; student portal shows history)
+DROP POLICY IF EXISTS "Public can view clases" ON clases;
+CREATE POLICY "Public can view clases" ON clases FOR SELECT USING (true);
 
-DROP POLICY IF EXISTS "Docentes can update inscripciones" ON inscripciones;
-CREATE POLICY "Docentes can update inscripciones" ON inscripciones FOR UPDATE USING (
-  catedra_id IN (SELECT id FROM catedras WHERE docente_id = auth.uid())
-);
-
--- Clases: docentes can manage for their cátedras
-DROP POLICY IF EXISTS "Docentes can view clases" ON clases;
-CREATE POLICY "Docentes can view clases" ON clases FOR SELECT USING (
-  catedra_id IN (SELECT id FROM catedras WHERE docente_id = auth.uid())
-);
-
+-- Docentes can manage classes for their cátedras
 DROP POLICY IF EXISTS "Docentes can insert clases" ON clases;
 CREATE POLICY "Docentes can insert clases" ON clases FOR INSERT WITH CHECK (
   catedra_id IN (SELECT id FROM catedras WHERE docente_id = auth.uid())
@@ -205,21 +211,36 @@ CREATE POLICY "Docentes can update clases" ON clases FOR UPDATE USING (
   catedra_id IN (SELECT id FROM catedras WHERE docente_id = auth.uid())
 );
 
--- Asistencias: docentes can view for their cátedras, public insert for QR scanning
-DROP POLICY IF EXISTS "Docentes can view asistencias" ON asistencias;
-CREATE POLICY "Docentes can view asistencias" ON asistencias FOR SELECT USING (
-  clase_id IN (SELECT c.id FROM clases c JOIN catedras cat ON c.catedra_id = cat.id WHERE cat.docente_id = auth.uid())
-);
-
-DROP POLICY IF EXISTS "Anyone can insert asistencia" ON asistencias;
-CREATE POLICY "Anyone can insert asistencia" ON asistencias FOR INSERT WITH CHECK (true);
-
--- Notas: docentes can manage for their cátedras
-DROP POLICY IF EXISTS "Docentes can view notas" ON notas;
-CREATE POLICY "Docentes can view notas" ON notas FOR SELECT USING (
+DROP POLICY IF EXISTS "Docentes can delete clases" ON clases;
+CREATE POLICY "Docentes can delete clases" ON clases FOR DELETE USING (
   catedra_id IN (SELECT id FROM catedras WHERE docente_id = auth.uid())
 );
 
+-- ─── ASISTENCIAS ─────────────────────────────────────────────────────────────
+-- Public read (student portal shows attendance history)
+DROP POLICY IF EXISTS "Public can view asistencias" ON asistencias;
+CREATE POLICY "Public can view asistencias" ON asistencias FOR SELECT USING (true);
+
+-- Anyone can insert (QR scanning flow)
+DROP POLICY IF EXISTS "Anyone can insert asistencia" ON asistencias;
+CREATE POLICY "Anyone can insert asistencia" ON asistencias FOR INSERT WITH CHECK (true);
+
+-- Docentes can update asistencias (manual attendance upsert)
+DROP POLICY IF EXISTS "Docentes can update asistencias" ON asistencias;
+CREATE POLICY "Docentes can update asistencias" ON asistencias FOR UPDATE USING (
+  clase_id IN (
+    SELECT c.id FROM clases c
+    JOIN catedras cat ON c.catedra_id = cat.id
+    WHERE cat.docente_id = auth.uid()
+  )
+);
+
+-- ─── NOTAS ───────────────────────────────────────────────────────────────────
+-- Public read (student portal shows grades)
+DROP POLICY IF EXISTS "Public can view notas" ON notas;
+CREATE POLICY "Public can view notas" ON notas FOR SELECT USING (true);
+
+-- Docentes can manage notas for their cátedras
 DROP POLICY IF EXISTS "Docentes can insert notas" ON notas;
 CREATE POLICY "Docentes can insert notas" ON notas FOR INSERT WITH CHECK (
   catedra_id IN (SELECT id FROM catedras WHERE docente_id = auth.uid())
@@ -227,6 +248,11 @@ CREATE POLICY "Docentes can insert notas" ON notas FOR INSERT WITH CHECK (
 
 DROP POLICY IF EXISTS "Docentes can update notas" ON notas;
 CREATE POLICY "Docentes can update notas" ON notas FOR UPDATE USING (
+  catedra_id IN (SELECT id FROM catedras WHERE docente_id = auth.uid())
+);
+
+DROP POLICY IF EXISTS "Docentes can delete notas" ON notas;
+CREATE POLICY "Docentes can delete notas" ON notas FOR DELETE USING (
   catedra_id IN (SELECT id FROM catedras WHERE docente_id = auth.uid())
 );
 

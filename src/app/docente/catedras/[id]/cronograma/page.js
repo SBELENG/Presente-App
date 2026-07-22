@@ -104,7 +104,7 @@ export default function CronogramaPage({ params }) {
           fecha,
           tema,
           tipo: tipo || 'teorico_practica',
-          estado_clase: 'normal'
+          estado_clase: estado_clase || 'normal'
         })
       error = err
     }
@@ -210,10 +210,18 @@ export default function CronogramaPage({ params }) {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-xs font-bold text-muted uppercase mb-1.5">Estado</label>
-                          <div className="px-4 py-2.5 bg-background border border-border rounded-xl opacity-60 text-sm">
-                            Habilitada
-                          </div>
+                          <label className="block text-xs font-bold text-muted uppercase mb-1.5">Estado / Excepción</label>
+                          <select 
+                            value={editForm.estado_clase}
+                            onChange={(e) => setEditForm({...editForm, estado_clase: e.target.value})}
+                            className={`w-full px-4 py-2.5 bg-background border rounded-xl focus:outline-none text-sm font-bold ${editForm.estado_clase !== 'normal' ? 'border-warning text-warning' : 'border-border text-foreground'}`}
+                          >
+                            <option value="normal">Clase Normal</option>
+                            <option value="feriado">Feriado</option>
+                            <option value="asueto">Asueto</option>
+                            <option value="paro">Paro / Huelga</option>
+                            <option value="suspension">Suspensión</option>
+                          </select>
                         </div>
                       </div>
                     </div>
@@ -245,6 +253,14 @@ export default function CronogramaPage({ params }) {
                           <span className="capitalize">{clase.tipo.replace('_', '-')}</span>
                           <span>•</span>
                           <span className="capitalize">{new Date(clase.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long' })}</span>
+                          {clase.estado_clase !== 'normal' && (
+                            <>
+                              <span>•</span>
+                              <span className="px-2 py-0.5 rounded-full bg-warning/10 text-warning text-[10px] font-black uppercase tracking-wider border border-warning/20">
+                                {clase.estado_clase}
+                              </span>
+                            </>
+                          )}
                           {!clase.id && <span className="px-2 py-0.5 rounded-full bg-primary/5 text-primary text-[10px] font-bold">Sin registrar</span>}
                         </div>
                       </div>

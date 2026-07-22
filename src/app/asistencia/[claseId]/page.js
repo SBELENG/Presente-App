@@ -52,6 +52,8 @@ export default function AsistenciaPublicaPage({ params }) {
       timeZone: 'America/Argentina/Buenos_Aires'
     }).format(new Date())
 
+    // TEMPORARY BYPASS FOR TESTING
+    /*
     if (claseData.fecha !== today) {
       console.log(`QR de otra fecha detectado (${claseData.fecha}). Buscando clase de hoy (${today})...`)
       
@@ -81,6 +83,7 @@ export default function AsistenciaPublicaPage({ params }) {
         return
       }
     }
+    */
 
     setClase(claseData)
     setCatedra(claseData.catedras)

@@ -228,6 +228,9 @@ export function getStudentExpectedDates(catedra, insc, clasesDB = []) {
     expectedDates = [...expectedDates, ...dPrac];
   }
 
+  // Eliminado: Defensa absoluta. La Carta Magna dicta que SOLO las fechas
+  // configuradas matemáticamente en el calendario son válidas.
+
   // Deduplicar por timestamp (evita doble cuenta en cátedras teorico_practica
   // donde teoria y practica caen en los mismos días)
   const seen = new Set();
