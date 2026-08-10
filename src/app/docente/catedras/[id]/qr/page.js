@@ -297,7 +297,6 @@ export default function QRProyectarPage({ params }) {
             </div>
           </div>
         </div>
-      </div>
 
       {!isFullscreen && (
         <div className="mt-16 p-6 bg-primary/5 rounded-2xl border border-primary/20 max-w-xl text-center">
