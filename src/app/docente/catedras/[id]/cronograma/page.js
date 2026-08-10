@@ -127,7 +127,8 @@ export default function CronogramaPage({ params }) {
     
     let dPrac = []
     if (catedra.agenda_rota_practicas) {
-      dPrac = generarFechas(catedra.fecha_inicio_practica || catedra.fecha_inicio, catedra.fecha_fin_practica || catedra.fecha_fin, [1,2,3,4,5,6].map(n => ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'][n]))
+      // Si la agenda es rotativa, no generamos huecos de práctica en el cronograma
+      dPrac = []
     } else if (catedra.dias_practica && catedra.dias_practica.length > 0) {
       dPrac = generarFechas(catedra.fecha_inicio_practica || catedra.fecha_inicio, catedra.fecha_fin_practica || catedra.fecha_fin, catedra.dias_practica)
     }

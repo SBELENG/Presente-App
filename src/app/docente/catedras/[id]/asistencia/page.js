@@ -20,7 +20,9 @@ import {
   Shield,
   ArrowUp,
   ArrowDown,
-  Plus
+  Plus,
+  Calendar,
+  ChevronRight
 } from 'lucide-react'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
@@ -676,8 +678,8 @@ export default function AsistenciaDetallePage({ params }) {
 
   // ── Dates from config ──────────────────────────────────────────────────────
 
-  const { fechasTeoria, fechasPractica, hasSplit, diasPracticaGlobal, esTeo, esPrac } = useMemo(() => {
-    if (!catedra) return { fechasTeoria: [], fechasPractica: [], hasSplit: false, diasPracticaGlobal: [], esTeo: false, esPrac: false }
+  const { fechasTeoria, fechasPractica, hasSplit, diasPracticaGlobal, esTeo, esPrac, uniqueValidDates } = useMemo(() => {
+    if (!catedra) return { fechasTeoria: [], fechasPractica: [], hasSplit: false, diasPracticaGlobal: [], esTeo: false, esPrac: false, uniqueValidDates: [] }
 
     const tipo = Array.isArray(catedra.tipo_clase) ? catedra.tipo_clase : [catedra.tipo_clase || 'teorico_practica']
     const esTeo = tipo.includes('teorica') || tipo.includes('teorico_practica')
