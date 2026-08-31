@@ -153,7 +153,10 @@ export default function NotasPage() {
           }
 
           if (initialMatrix[grade.inscripcion_id].hasOwnProperty(typeKey)) {
-            initialMatrix[grade.inscripcion_id][typeKey] = grade.valor || '';
+            let displayValue = grade.valor;
+            if (displayValue === -1) displayValue = 'A';
+            else if (displayValue === -2) displayValue = 'D';
+            initialMatrix[grade.inscripcion_id][typeKey] = displayValue !== null ? String(displayValue) : '';
           }
         }
       });
@@ -219,7 +222,9 @@ export default function NotasPage() {
     // TPs promediables
     const cantTps = (catedra?.cant_tps_separados || 0) + (catedra?.cant_tps_con_parciales || 0) || (catedra?.cant_tps || 0);
     for (let i = 1; i <= cantTps; i++) {
-        const v = parseFloat(grades[`tp_${i}`]);
+        const rawV = grades[`tp_${i}`];
+        if (rawV === 'A' || rawV === 'D' || rawV === 'a' || rawV === 'd') continue;
+        const v = parseFloat(rawV);
         if (!isNaN(v)) vals.push(v);
     }
     
@@ -228,11 +233,22 @@ export default function NotasPage() {
   };
 
   const handleInputChange = (inscId, tipo, value) => {
-    const num = parseFloat(value);
-    if (value !== '' && (num < 0 || num > 10)) return;
+    let finalValue = value;
+    if (tipo.startsWith('tp_')) {
+      if (typeof value === 'string' && ['a', 'd'].includes(value.toLowerCase())) {
+        finalValue = value.toUpperCase();
+      } else {
+        const num = parseFloat(value);
+        if (value !== '' && (num < 0 || num > 10)) return;
+      }
+    } else {
+      const num = parseFloat(value);
+      if (value !== '' && (num < 0 || num > 10)) return;
+    }
+    
     setMatrix(prev => ({
       ...prev,
-      [inscId]: { ...prev[inscId], [tipo]: value }
+      [inscId]: { ...prev[inscId], [tipo]: finalValue }
     }));
   };
 
@@ -246,7 +262,8 @@ export default function NotasPage() {
       Object.entries(matrix).forEach(([inscId, studentGrades]) => {
           Object.entries(studentGrades).forEach(([type, val]) => {
               if (val === '' || val === null) return;
-              const numericVal = parseFloat(val);
+              const rawVal = val;
+              let numericVal = parseFloat(val);
               
               let dbType = 'tp';
               if (type.includes('parcial_1')) dbType = 'parcial_1';
@@ -259,6 +276,13 @@ export default function NotasPage() {
               } else if (type.includes('tp')) {
                   dbType = 'tp'; // Consolidamos TPs en uno solo para máxima compatibilidad
               }
+
+              if (dbType === 'tp') {
+                  if (rawVal === 'A') numericVal = -1;
+                  else if (rawVal === 'D') numericVal = -2;
+              }
+              
+              if (isNaN(numericVal)) return;
 
               updatesMap[`${inscId}_${dbType}`] = {
                   inscripcion_id: inscId,
@@ -435,8 +459,7 @@ export default function NotasPage() {
                         {evaluaciones.map(ev => (
                             <td key={ev.id} className="px-2 py-2 text-center">
                                 <input 
-                                    type="number" 
-                                    step="0.5" 
+                                    type="text" 
                                     value={matrix[s.id]?.[ev.id] || ''} 
                                     onChange={(e) => handleInputChange(s.id, ev.id, e.target.value)} 
                                     className={`w-14 p-1.5 text-center border rounded-lg font-bold bg-white focus:ring-2 outline-none transition-all shadow-sm text-sm ${
@@ -580,14 +603,18 @@ export default function NotasPage() {
                 <label className="text-xs font-black uppercase tracking-widest text-slate-500">Nota</label>
                 <input 
                   required
-                  type="number" 
-                  step="0.5"
-                  min="0"
-                  max="10"
+                  type="text"
                   value={quickGrade}
-                  onChange={(e) => setQuickGrade(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (quickEval.startsWith('tp_') && ['a', 'A', 'd', 'D'].includes(val)) {
+                      setQuickGrade(val.toUpperCase());
+                    } else if (val === '' || (parseFloat(val) >= 0 && parseFloat(val) <= 10)) {
+                      setQuickGrade(val);
+                    }
+                  }}
                   className="w-full p-4 bg-white border-2 border-slate-200 rounded-2xl focus:border-purple-600 focus:ring-4 focus:ring-purple-100 text-slate-900 font-black outline-none transition-all text-xl"
-                  placeholder="Ej: 8.5"
+                  placeholder={quickEval.startsWith('tp_') ? "Ej: 8.5, A o D" : "Ej: 8.5"}
                 />
               </div>
 
