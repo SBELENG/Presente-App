@@ -14,7 +14,9 @@ import {
   UserCheck,
   Trophy,
   AlertTriangle,
-  ClipboardList
+  ClipboardList,
+  Zap,
+  X
 } from 'lucide-react';
 import Link from 'next/link';
 import { TIPO_NOTA } from '@/lib/constants';
@@ -33,6 +35,14 @@ export default function NotasPage() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState({ type: '', text: '' });
+  
+  // Quick Entry Modal States
+  const [showQuickEntry, setShowQuickEntry] = useState(false);
+  const [quickEval, setQuickEval] = useState('');
+  const [quickSearch, setQuickSearch] = useState('');
+  const [quickStudent, setQuickStudent] = useState(null);
+  const [quickGrade, setQuickGrade] = useState('');
+  const [quickMessage, setQuickMessage] = useState({ type: '', text: '' });
   
   const supabase = createClient();
 
@@ -286,6 +296,26 @@ export default function NotasPage() {
     }
   };
 
+  const handleQuickSave = (e) => {
+    e.preventDefault();
+    if (!quickEval || !quickStudent || quickGrade === '') return;
+    
+    handleInputChange(quickStudent.id, quickEval, quickGrade);
+    
+    setQuickMessage({ 
+      type: 'success', 
+      text: `Nota guardada para ${quickStudent.apellido_estudiante} (${quickGrade})` 
+    });
+    
+    // Clear for next
+    setQuickStudent(null);
+    setQuickSearch('');
+    setQuickGrade('');
+    
+    // Clear success message after 2 seconds
+    setTimeout(() => setQuickMessage({ type: '', text: '' }), 2000);
+  };
+
   const filteredStudents = inscriptos.filter(s => 
     `${s.nombre_estudiante} ${s.apellido_estudiante} ${s.dni_estudiante}`.toLowerCase().includes(search.toLowerCase())
   );
@@ -309,15 +339,15 @@ export default function NotasPage() {
       <div className="max-w-[1600px] mx-auto w-full">
         
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-12">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
           <div>
-            <Link href={`/docente/catedras/${id}`} className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-blue-700 transition-all mb-4">
-              <ArrowLeft className="w-4 h-4" /> Volver al panel de la cátedra
+            <Link href={`/docente/catedras/${id}`} className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-blue-700 transition-all mb-2">
+              <ArrowLeft className="w-4 h-4" /> Volver
             </Link>
-            <h1 className="text-5xl font-black text-slate-900 tracking-tighter leading-none mb-2">
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none mb-2">
               Matriz de Notas
             </h1>
-            <p className="text-slate-600 font-bold flex items-center gap-2">
+            <p className="text-sm text-slate-600 font-bold flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                 Configuración: {catedra?.cant_parciales} Parciales, {catedra?.cant_recuperatorios} Rec., {catedra?.tiene_tp_evaluable ? 'con TPs' : 'sin TPs'}
             </p>
@@ -334,14 +364,18 @@ export default function NotasPage() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-blue-600 transition-colors" />
               <input 
                 type="text" 
-                placeholder="Buscar por nombre o DNI..." 
+                placeholder="Buscar alumno..." 
                 value={search} 
                 onChange={(e) => setSearch(e.target.value)} 
-                className="w-full pl-12 pr-6 py-4 bg-white border-2 border-slate-200 rounded-2xl shadow-sm focus:border-blue-600 focus:ring-4 focus:ring-blue-100 text-slate-900 placeholder-slate-400 outline-none transition-all font-black text-sm" 
+                className="w-full pl-10 pr-4 py-2.5 bg-white border-2 border-slate-200 rounded-xl shadow-sm focus:border-blue-600 focus:ring-4 focus:ring-blue-100 text-slate-900 placeholder-slate-400 outline-none transition-all font-bold text-sm" 
               />
             </div>
-            <button onClick={handleSave} disabled={saving} className="w-full md:w-auto px-10 py-4 bg-blue-600 text-white font-black rounded-2xl shadow-xl shadow-blue-600/25 hover:bg-blue-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-3 disabled:opacity-50">
-              {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+            <button onClick={() => setShowQuickEntry(true)} className="w-full md:w-auto px-4 py-2.5 bg-purple-600 text-white font-bold rounded-xl shadow-lg shadow-purple-600/25 hover:bg-purple-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 text-sm">
+              <Zap className="w-4 h-4" />
+              CARGA RÁPIDA
+            </button>
+            <button onClick={handleSave} disabled={saving} className="w-full md:w-auto px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-600/25 hover:bg-blue-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               GUARDAR CAMBIOS
             </button>
           </div>
@@ -355,75 +389,74 @@ export default function NotasPage() {
         )}
 
         {/* Table Container */}
-        <div className="bg-white rounded-[2.5rem] border-2 border-slate-200 shadow-2xl shadow-slate-300/30 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-300/30 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b-2 border-slate-100">
-                  <th className="p-8 text-[11px] font-black uppercase text-slate-500 tracking-[0.2em] sticky left-0 bg-slate-50 z-10">Alumno / Inscripto</th>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase text-slate-500 tracking-wider sticky left-0 bg-slate-50 z-10 border-r border-slate-200">Alumno / Inscripto</th>
                   
                   {/* Dynamic Headers */}
                   {evaluaciones.map(ev => (
-                    <th key={ev.id} className={`p-8 text-[11px] font-black uppercase tracking-[0.2em] text-center ${
-                        ev.type === 'parcial' ? 'text-blue-500' : 
-                        ev.type === 'rec' ? 'text-amber-500' : 
-                        ev.type === 'tp' ? 'text-purple-500' :
-                        'text-emerald-500'
+                    <th key={ev.id} className={`px-2 py-3 text-[10px] font-bold uppercase tracking-wider text-center ${
+                        ev.type === 'parcial' ? 'text-blue-600' : 
+                        ev.type === 'rec' ? 'text-amber-600' : 
+                        ev.type === 'tp' ? 'text-purple-600' :
+                        'text-emerald-600'
                     }`}>
                         <div className="flex flex-col items-center">
-                            <span className="text-[10px] opacity-60 mb-1">{ev.label}</span>
-                            <span className="text-sm font-black">{ev.short}</span>
+                            <span className="text-[9px] opacity-70 mb-0.5">{ev.label}</span>
+                            <span className="text-xs font-black">{ev.short}</span>
                         </div>
                     </th>
                   ))}
 
-                  <th className="p-8 text-[11px] font-black uppercase text-slate-500 tracking-[0.2em] text-center">Promedio</th>
-                  <th className="p-8 text-[11px] font-black uppercase text-slate-600 tracking-[0.2em] text-center bg-blue-50/50">Estado Académico</th>
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase text-slate-500 tracking-wider text-center">Prom.</th>
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase text-slate-600 tracking-wider text-center bg-blue-50/50">Estado</th>
                 </tr>
               </thead>
-              <tbody className="divide-y-2 divide-slate-50">
+              <tbody className="divide-y divide-slate-100">
                 {filteredStudents.length > 0 ? (
                   filteredStudents.map((s) => {
                     const status = calculateStatus(s.id);
                     return (
-                      <tr key={s.id} className="group hover:bg-blue-50/5 transition-colors">
-                        <td className="p-8 sticky left-0 bg-white group-hover:bg-blue-50/5 z-10 border-r border-slate-50">
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center font-black text-slate-500 text-sm">{s.apellido_estudiante?.[0]}{s.nombre_estudiante?.[0]}</div>
-                            <div>
-                              <p className="font-black text-slate-900 text-lg uppercase tracking-tight leading-none mb-1">{s.apellido_estudiante}, {s.nombre_estudiante}</p>
-                              <p className="text-xs font-bold text-slate-500 tracking-widest uppercase">DNI: {s.dni_estudiante}</p>
+                      <tr key={s.id} className="group hover:bg-blue-50/20 transition-colors">
+                        <td className="px-4 py-2 sticky left-0 bg-white group-hover:bg-blue-50/20 z-10 border-r border-slate-200">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-500 text-xs shrink-0">{s.apellido_estudiante?.[0]}{s.nombre_estudiante?.[0]}</div>
+                            <div className="min-w-0">
+                              <p className="font-bold text-slate-900 text-sm truncate">{s.apellido_estudiante}, {s.nombre_estudiante}</p>
+                              <p className="text-[10px] text-slate-500">DNI: {s.dni_estudiante}</p>
                             </div>
                           </div>
                         </td>
 
                         {/* Dynamic Inputs */}
                         {evaluaciones.map(ev => (
-                            <td key={ev.id} className="p-8 text-center">
+                            <td key={ev.id} className="px-2 py-2 text-center">
                                 <input 
                                     type="number" 
                                     step="0.5" 
                                     value={matrix[s.id]?.[ev.id] || ''} 
                                     onChange={(e) => handleInputChange(s.id, ev.id, e.target.value)} 
-                                    className={`w-16 p-3 text-center border-2 rounded-2xl font-black bg-white focus:ring-4 outline-none transition-all shadow-sm ${
-                                        ev.type === 'parcial' ? 'border-blue-100 focus:border-blue-600 focus:ring-blue-100 text-blue-900' : 
-                                        ev.type === 'rec' ? 'border-amber-100 focus:border-amber-600 focus:ring-amber-100 text-amber-900' : 
-                                        ev.type === 'tp' ? 'border-purple-100 focus:border-purple-600 focus:ring-purple-100 text-purple-900' :
-                                        'border-emerald-100 focus:border-emerald-600 focus:ring-emerald-100 text-emerald-900'
+                                    className={`w-14 p-1.5 text-center border rounded-lg font-bold bg-white focus:ring-2 outline-none transition-all shadow-sm text-sm ${
+                                        ev.type === 'parcial' ? 'border-blue-200 focus:border-blue-500 focus:ring-blue-100 text-blue-900' : 
+                                        ev.type === 'rec' ? 'border-amber-200 focus:border-amber-500 focus:ring-amber-100 text-amber-900' : 
+                                        ev.type === 'tp' ? 'border-purple-200 focus:border-purple-500 focus:ring-purple-100 text-purple-900' :
+                                        'border-emerald-200 focus:border-emerald-500 focus:ring-emerald-100 text-emerald-900'
                                     }`} 
                                     placeholder="-" 
                                 />
                             </td>
                         ))}
 
-                        <td className="p-8 text-center">
-                          <div className="inline-flex items-center gap-2 px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 font-black text-slate-900 text-xl shadow-inner-sm">
-                            <Calculator className="w-4 h-4 text-slate-300" />
+                        <td className="px-4 py-2 text-center">
+                          <div className="inline-flex items-center justify-center min-w-[3rem] px-2 py-1 rounded bg-slate-50 border border-slate-200 font-bold text-slate-900 text-xs">
                             {calculatePromedio(s.id)}
                           </div>
                         </td>
-                        <td className="p-8 text-center bg-blue-50/20 group-hover:bg-blue-50/30 transition-colors">
-                          <div className={`inline-flex items-center gap-2 px-6 py-3 rounded-full border-2 font-black text-[10px] tracking-widest shadow-sm transition-all hover:scale-105 ${status.color}`}>
+                        <td className="px-4 py-2 text-center bg-blue-50/10 group-hover:bg-blue-50/30 transition-colors">
+                          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border font-bold text-[10px] tracking-wide whitespace-nowrap ${status.color}`}>
                             {status.icon}
                             {status.label}
                           </div>
@@ -462,6 +495,122 @@ export default function NotasPage() {
            </p>
         </div>
       </div>
+
+      {/* Quick Entry Modal */}
+      {showQuickEntry && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden animate-scale-in">
+            <div className="p-8 border-b-2 border-slate-100 flex justify-between items-center bg-purple-50/50">
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+                  <Zap className="w-6 h-6 text-purple-600" /> Carga Rápida
+                </h2>
+                <p className="text-slate-500 font-bold text-sm mt-1">Cargá las notas más rápido sin buscar en la tabla.</p>
+              </div>
+              <button onClick={() => setShowQuickEntry(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-colors bg-white rounded-full shadow-sm">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleQuickSave} className="p-8 space-y-6">
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-slate-500">Evaluación</label>
+                <select 
+                  required
+                  value={quickEval} 
+                  onChange={(e) => setQuickEval(e.target.value)}
+                  className="w-full p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl focus:border-purple-600 focus:ring-4 focus:ring-purple-100 text-slate-900 font-black outline-none transition-all appearance-none"
+                >
+                  <option value="" disabled>Seleccioná una evaluación...</option>
+                  {evaluaciones.map(ev => (
+                    <option key={ev.id} value={ev.id}>{ev.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2 relative">
+                <label className="text-xs font-black uppercase tracking-widest text-slate-500">Alumno</label>
+                {!quickStudent ? (
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input 
+                      autoFocus
+                      type="text" 
+                      placeholder="Buscar por nombre o DNI..." 
+                      value={quickSearch}
+                      onChange={(e) => setQuickSearch(e.target.value)}
+                      className="w-full pl-12 pr-4 p-4 bg-white border-2 border-slate-200 rounded-2xl focus:border-purple-600 focus:ring-4 focus:ring-purple-100 text-slate-900 font-black outline-none transition-all"
+                    />
+                    
+                    {quickSearch.length > 1 && (
+                      <div className="absolute top-full mt-2 w-full bg-white border-2 border-slate-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto z-10">
+                        {inscriptos
+                          .filter(s => `${s.nombre_estudiante} ${s.apellido_estudiante} ${s.dni_estudiante}`.toLowerCase().includes(quickSearch.toLowerCase()))
+                          .map(s => (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => {
+                                setQuickStudent(s);
+                                setQuickSearch('');
+                              }}
+                              className="w-full text-left p-4 hover:bg-purple-50 transition-colors border-b border-slate-100 last:border-0 flex items-center justify-between"
+                            >
+                              <span className="font-black text-slate-900">{s.apellido_estudiante}, {s.nombre_estudiante}</span>
+                              <span className="text-xs font-bold text-slate-500">DNI: {s.dni_estudiante}</span>
+                            </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-center bg-purple-50 border-2 border-purple-200 rounded-2xl p-4">
+                    <div>
+                      <p className="font-black text-purple-900">{quickStudent.apellido_estudiante}, {quickStudent.nombre_estudiante}</p>
+                      <p className="text-xs font-bold text-purple-600 uppercase tracking-widest">DNI: {quickStudent.dni_estudiante}</p>
+                    </div>
+                    <button type="button" onClick={() => setQuickStudent(null)} className="text-purple-400 hover:text-purple-700">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-slate-500">Nota</label>
+                <input 
+                  required
+                  type="number" 
+                  step="0.5"
+                  min="0"
+                  max="10"
+                  value={quickGrade}
+                  onChange={(e) => setQuickGrade(e.target.value)}
+                  className="w-full p-4 bg-white border-2 border-slate-200 rounded-2xl focus:border-purple-600 focus:ring-4 focus:ring-purple-100 text-slate-900 font-black outline-none transition-all text-xl"
+                  placeholder="Ej: 8.5"
+                />
+              </div>
+
+              {quickMessage.text && (
+                <div className="p-4 bg-emerald-50 border-2 border-emerald-200 rounded-xl text-emerald-700 text-sm font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5" /> {quickMessage.text}
+                </div>
+              )}
+
+              <button 
+                type="submit" 
+                disabled={!quickEval || !quickStudent || quickGrade === ''}
+                className="w-full p-4 bg-purple-600 text-white font-black rounded-2xl shadow-xl shadow-purple-600/25 hover:bg-purple-700 transition-all disabled:opacity-50 mt-4"
+              >
+                GUARDAR Y SIGUIENTE
+              </button>
+              
+              <p className="text-center text-xs font-bold text-slate-400 mt-2">No olvides apretar "Guardar Cambios" en la pantalla principal al finalizar.</p>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

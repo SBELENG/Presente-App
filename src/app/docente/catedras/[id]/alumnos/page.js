@@ -122,7 +122,7 @@ export default function AlumnosPage({ params }) {
       const keys = Object.keys(row)
       const findKey = (candidates) => keys.find(k => candidates.includes(k.toLowerCase()))
       
-      const colAlumno = findKey(['alumno', 'estudiante', 'nombre completo', 'nombre y apellido', 'nombre_apellido', 'full name', 'fullname'])
+      const colAlumno = findKey(['alumno', 'estudiante', 'nombre completo', 'nombre y apellido', 'apellido y nombre', 'nombre_apellido', 'full name', 'fullname'])
       const colApellido = findKey(['apellido', 'apellidos', 'lastname', 'surname'])
       const colNombre = findKey(['nombre', 'nombres', 'firstname', 'name'])
       const colDni = findKey(['dni', 'documento', 'doc', 'id', 'cédula', 'nro documento', 'identificación'])
