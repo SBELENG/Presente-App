@@ -12,7 +12,9 @@ import {
   FileText,
   CheckCircle2,
   AlertCircle,
-  Loader2
+  Loader2,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react'
 import Link from 'next/link'
 import Papa from 'papaparse'
@@ -37,6 +39,9 @@ export default function AlumnosPage({ params }) {
   const [savingManual, setSavingManual] = useState(false)
 
   const supabase = createClient()
+
+  const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+  const scrollToBottom = () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
 
   useEffect(() => {
     fetchData()
@@ -499,6 +504,16 @@ export default function AlumnosPage({ params }) {
         <button className="flex items-center gap-2 hover:text-foreground transition-colors">
           <Download className="w-4 h-4" />
           Descargar listado actual
+        </button>
+      </div>
+
+      {/* Floating Scroll Buttons */}
+      <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-50">
+        <button onClick={scrollToTop} className="w-10 h-10 bg-surface border border-border rounded-full flex items-center justify-center hover:bg-surface-hover shadow-lg transition-all" title="Ir arriba">
+          <ArrowUp className="w-5 h-5 text-muted" />
+        </button>
+        <button onClick={scrollToBottom} className="w-10 h-10 bg-surface border border-border rounded-full flex items-center justify-center hover:bg-surface-hover shadow-lg transition-all" title="Ir abajo">
+          <ArrowDown className="w-5 h-5 text-muted" />
         </button>
       </div>
     </div>

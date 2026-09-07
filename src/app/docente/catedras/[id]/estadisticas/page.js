@@ -162,18 +162,11 @@ export default function EstadisticasCatedraPage({ params }) {
         
         const status = calculateAcademicStatus(catedra, studentGrades, attPct) || { label: 'EN CURSO', key: 'EN_CURSO' }
 
-        // Totales para el Pie Chart
+        // Totales para el Pie Chart / KPIs
         if (status.key === 'PROMOCION') statusCounts.promocion++
         else if (status.key === 'REGULAR') statusCounts.regular++
         else if (status.key === 'EN_CURSO') statusCounts.en_curso++
         else statusCounts.libre++
-
-        // Data para el gráfico de notas
-        gradeChartData.push({
-          name: alumno.apellido_estudiante,
-          p1: studentGrades.parcial_1 || studentGrades.P1 || 0,
-          p2: studentGrades.parcial_2 || studentGrades.P2 || 0
-        })
 
         // Identificar riesgo crítico
         if (status.key === 'LIBRE' || isAlreadyLibreByAbsences || isPredictiveRisk) {
@@ -197,11 +190,62 @@ export default function EstadisticasCatedraPage({ params }) {
         { name: 'Libre', value: statusCounts.libre, color: '#ef4444' }
       ].filter(d => d.value > 0)
 
+      // Histogram Data for Grades
+      const histogramObj = {
+        '0-3': { name: '0-3 (Insuf.)', p1: 0, p2: 0 },
+        '4-5': { name: '4-5 (Aprob.)', p1: 0, p2: 0 },
+        '6-7': { name: '6-7 (Bueno)', p1: 0, p2: 0 },
+        '8-10': { name: '8-10 (Muy Bueno)', p1: 0, p2: 0 }
+      }
+      
+      let p1Takers = 0, p1Passed = 0
+      let p2Takers = 0, p2Passed = 0
+
+      alumnos.forEach(alumno => {
+        const studentGrades = {}
+        notas.filter(n => n.inscripcion_id === alumno.id).forEach(n => {
+          studentGrades[n.tipo] = parseFloat(n.valor) || null
+        })
+
+        const p1 = studentGrades.parcial_1 || studentGrades.P1 || null
+        const p2 = studentGrades.parcial_2 || studentGrades.P2 || null
+
+        const assignBin = (val, key) => {
+          if (val === null) return
+          if (val < 4) histogramObj['0-3'][key]++
+          else if (val < 6) histogramObj['4-5'][key]++
+          else if (val < 8) histogramObj['6-7'][key]++
+          else histogramObj['8-10'][key]++
+        }
+
+        if (p1 !== null) {
+          assignBin(p1, 'p1')
+          p1Takers++
+          if (p1 >= 4) p1Passed++ // Nota mínima de aprobación
+        }
+        if (p2 !== null) {
+          assignBin(p2, 'p2')
+          p2Takers++
+          if (p2 >= 4) p2Passed++
+        }
+      })
+
+      const histogramData = Object.values(histogramObj)
+
+      const kpiData = {
+        activos: alumnos.length - statusCounts.libre,
+        libres: statusCounts.libre,
+        enRiesgo: riskStudents.filter(r => r.status.key !== 'LIBRE').length,
+        p1PassRate: p1Takers > 0 ? Math.round((p1Passed / p1Takers) * 100) : null,
+        p2PassRate: p2Takers > 0 ? Math.round((p2Passed / p2Takers) * 100) : null,
+      }
+
       setData({ 
         chartData, 
         pieData, 
+        histogramData,
+        kpiData,
         riskStudents,
-        gradeChartData,
         stats: { totalAlumnos: alumnos.length, totalClases: totalClassesCount, attendancePct: attendanceThreshold } 
       })
     } catch (err) {
@@ -286,83 +330,78 @@ export default function EstadisticasCatedraPage({ params }) {
           </div>
         </div>
 
-        <div className="bg-surface border border-border rounded-3xl p-8 shadow-sm">
+        <div className="bg-surface border border-border rounded-3xl p-8 shadow-sm flex flex-col justify-center">
            <h2 className="text-lg font-bold text-foreground mb-6 flex items-center gap-2">
             <PieChartIcon className="w-5 h-5 text-accent" />
-            Distribución de Estado Académico (Pie)
+            Estado de la Cursada (KPIs)
           </h2>
-          <div className="flex flex-col md:flex-row items-center justify-center gap-8 min-h-[250px]">
-            {data?.pieData && data.pieData.length > 0 ? (
-              <>
-                <div className="h-[250px] w-[250px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={data.pieData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {data.pieData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="space-y-4">
-                  {data.pieData.map((d, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
-                      <span className="text-sm font-bold text-foreground">{d.name}:</span>
-                      <span className="text-sm text-muted">{d.value} alumnos ({Math.round(d.value / Math.max(data.stats.totalAlumnos, 1) * 100)}%)</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="text-center text-muted flex flex-col items-center">
-                <PieChartIcon className="w-10 h-10 mb-2 opacity-20" />
-                <p className="text-sm font-medium">Aún no hay alumnos inscriptos o evaluados.</p>
-              </div>
-            )}
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-5 bg-surface-hover/50 rounded-2xl border border-border">
+              <p className="text-xs font-bold text-muted uppercase">Alumnos Activos</p>
+              <p className="text-4xl font-black text-foreground mt-2">{data?.kpiData?.activos || 0}</p>
+              <p className="text-[10px] font-bold text-warning mt-2">{data?.kpiData?.enRiesgo || 0} en riesgo de quedar libres</p>
+            </div>
+            
+            <div className="p-5 bg-danger/5 rounded-2xl border border-danger/20">
+              <p className="text-xs font-bold text-danger/80 uppercase">Alumnos Libres</p>
+              <p className="text-4xl font-black text-danger mt-2">{data?.kpiData?.libres || 0}</p>
+              <p className="text-[10px] font-bold text-danger/60 mt-2">Por inasistencia o notas</p>
+            </div>
+
+            <div className="p-5 bg-success/5 rounded-2xl border border-success/20">
+              <p className="text-xs font-bold text-success/80 uppercase flex items-center gap-1.5">
+                <CheckCircle className="w-3.5 h-3.5" />
+                Aprobación Parcial 1
+              </p>
+              <p className="text-4xl font-black text-success mt-2">
+                {data?.kpiData?.p1PassRate !== null ? `${data.kpiData.p1PassRate}%` : '-'}
+              </p>
+            </div>
+
+            <div className="p-5 bg-primary/5 rounded-2xl border border-primary/20">
+              <p className="text-xs font-bold text-primary/80 uppercase flex items-center gap-1.5">
+                <CheckCircle className="w-3.5 h-3.5" />
+                Aprobación Parcial 2
+              </p>
+              <p className="text-4xl font-black text-primary mt-2">
+                {data?.kpiData?.p2PassRate !== null ? `${data.kpiData.p2PassRate}%` : '-'}
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Grades Performance Chart */}
+      {/* Grades Performance Chart (Histogram) */}
       <div className="mt-8 bg-surface border border-border rounded-3xl p-8 shadow-sm">
         <h2 className="text-lg font-bold text-foreground mb-6 flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-success" />
-          Rendimiento por Parciales (Comparativa)
+          Distribución de Calificaciones (Histograma)
         </h2>
-        <div className="h-[400px] w-full flex items-center justify-center">
-          {data?.gradeChartData && data.gradeChartData.length > 0 ? (
+        <div className="h-[350px] w-full flex items-center justify-center">
+          {data?.histogramData && (data.kpiData.p1PassRate !== null || data.kpiData.p2PassRate !== null) ? (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.gradeChartData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+              <BarChart data={data.histogramData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="name" angle={-45} textAnchor="end" interval={0} tick={{ fontSize: 10 }} />
-                <YAxis domain={[0, 10]} ticks={[0,2,4,5,6,7,8,10]} />
-                <Tooltip />
-                <ReferenceLine y={5} label={{ position: 'right', value: 'REGULAR (5)', fill: '#22c55e', fontSize: 10, fontWeight: 'bold' }} stroke="#22c55e" strokeDasharray="3 3" />
-                <ReferenceLine y={7} label={{ position: 'right', value: 'PROMOCIÓN (7)', fill: '#6366f1', fontSize: 10, fontWeight: 'bold' }} stroke="#6366f1" strokeDasharray="3 3" />
-                <Bar dataKey="p1" name="Primer Parcial" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="p2" name="Segundo Parcial" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 'bold' }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} axisLine={false} tickLine={false} />
+                <Tooltip 
+                  cursor={{ fill: 'var(--surface-hover)' }}
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                />
+                <Bar dataKey="p1" name="Parcial 1" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="p2" name="Parcial 2" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
             <div className="text-center text-muted flex flex-col items-center">
               <TrendingUp className="w-10 h-10 mb-2 opacity-20" />
-              <p className="text-sm font-medium">Aún no hay alumnos con notas cargadas.</p>
+              <p className="text-sm font-medium">Aún no hay notas de parciales cargadas para mostrar la distribución.</p>
             </div>
           )}
         </div>
         <p className="text-[10px] text-muted mt-4 text-center">
-          * Las barras muestran el desempeño actual. Las líneas horizontales indican los umbrales para regularizar (5) y promocionar (7).
+          * Muestra la cantidad de alumnos que obtuvieron calificaciones dentro de cada rango para analizar el rendimiento general.
         </p>
       </div>
 
