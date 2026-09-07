@@ -29,24 +29,19 @@ import {
   ReferenceLine,
   LabelList
 } from 'recharts'
+import { ArrowUp, ArrowDown } from 'lucide-react'
 import { TIPO_NOTA } from '@/lib/constants'
 import { calculateAcademicStatus, generarFechas, getStudentExpectedDates } from '@/lib/academic-logic'
 
 export default function EstadisticasCatedraPage({ params }) {
-  const [id, setId] = useState(null)
+  const unwrappedParams = use(params)
+  const id = unwrappedParams.id
+  const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+  const scrollToBottom = () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const supabase = createClient()
-
-  useEffect(() => {
-    // Safely unwrap Next 15 async params Promise
-    if (params) {
-      Promise.resolve(params).then(p => {
-        if (p.id) setId(p.id)
-      })
-    }
-  }, [params])
 
   useEffect(() => {
     if (id) {
@@ -149,8 +144,8 @@ export default function EstadisticasCatedraPage({ params }) {
         const maxAbsencesAllowedPerStudent = Math.round(studentTotalExpected * (1 - (attendanceThreshold / 100)))
         const attPct = Math.round((presents / studentTotalExpected) * 100)
         
-        // Guard: Solo alertar si ya hubo al menos 3 clases válidas dictadas
-        const canAlert = validasTomadasCount >= 3
+        // Guard: Solo alertar si ya hubo al menos 1 clase dictada
+        const canAlert = validasTomadasCount > 0
         const isPredictiveRisk = canAlert && absences === maxAbsencesAllowedPerStudent && maxAbsencesAllowedPerStudent > 0
         const isAlreadyLibreByAbsences = canAlert && absences > maxAbsencesAllowedPerStudent
 
@@ -445,6 +440,16 @@ export default function EstadisticasCatedraPage({ params }) {
             <p className="text-sm">No hay alumnos en situación de riesgo crítico por el momento.</p>
           </div>
         )}
+      </div>
+
+      {/* Floating Scroll Buttons */}
+      <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-50">
+        <button onClick={scrollToTop} className="w-10 h-10 bg-surface border border-border rounded-full flex items-center justify-center hover:bg-surface-hover shadow-lg transition-all" title="Ir arriba">
+          <ArrowUp className="w-5 h-5 text-muted" />
+        </button>
+        <button onClick={scrollToBottom} className="w-10 h-10 bg-surface border border-border rounded-full flex items-center justify-center hover:bg-surface-hover shadow-lg transition-all" title="Ir abajo">
+          <ArrowDown className="w-5 h-5 text-muted" />
+        </button>
       </div>
     </div>
   )
