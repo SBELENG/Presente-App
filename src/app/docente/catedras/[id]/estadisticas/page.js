@@ -34,8 +34,7 @@ import { TIPO_NOTA } from '@/lib/constants'
 import { calculateAcademicStatus, generarFechas, getStudentExpectedDates } from '@/lib/academic-logic'
 
 export default function EstadisticasCatedraPage({ params }) {
-  const unwrappedParams = use(params)
-  const id = unwrappedParams.id
+  const [id, setId] = useState(null)
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
   const scrollToBottom = () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   const [data, setData] = useState(null)
@@ -44,9 +43,19 @@ export default function EstadisticasCatedraPage({ params }) {
   const supabase = createClient()
 
   useEffect(() => {
+    // Safely unwrap Next 15 async params Promise
+    if (params) {
+      Promise.resolve(params).then(p => {
+        if (p.id) setId(p.id)
+      })
+    }
+  }, [params])
+
+  useEffect(() => {
     if (id) {
       fetchData()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   const fetchData = async () => {
