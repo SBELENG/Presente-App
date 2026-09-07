@@ -161,6 +161,9 @@ export default function EstadisticasCatedraPage({ params }) {
         let isAlreadyLibreByAbsences = false
         let attPct = 100
         
+        let absTeo = 0, maxTeo = 0
+        let absPrac = 0, maxPrac = 0
+
         const checkRisk = (expectedDates, reqPct) => {
             let validasCount = 0
             let pCount = 0
@@ -178,19 +181,29 @@ export default function EstadisticasCatedraPage({ params }) {
                }
             })
             const abs = validasCount - pCount
-            const maxAllowed = Math.round((expectedDates.length || 1) * (1 - (reqPct / 100)))
+            const maxAllowed = Math.round(validasCount * (1 - (reqPct / 100)))
+            
             if (validasCount > 0 && abs === maxAllowed && maxAllowed > 0) isPredictiveRisk = true
             if (validasCount > 0 && abs > maxAllowed) isAlreadyLibreByAbsences = true
-            return pCount / (expectedDates.length || 1)
+            
+            return {
+                pct: validasCount > 0 ? (pCount / validasCount) : 1,
+                abs,
+                maxAllowed
+            }
         }
 
         if (dTeo.length > 0) {
-            const teoPct = checkRisk(dTeo, catedra.porcentaje_asistencia || catedra.asistencia_teoria || 80)
-            attPct = Math.min(attPct, Math.round(teoPct * 100))
+            const teoStats = checkRisk(dTeo, catedra.porcentaje_asistencia || catedra.asistencia_teoria || 80)
+            attPct = Math.min(attPct, Math.round(teoStats.pct * 100))
+            absTeo = teoStats.abs
+            maxTeo = teoStats.maxAllowed
         }
         if (dPrac.length > 0) {
-            const pracPct = checkRisk(dPrac, catedra.porcentaje_asistencia || catedra.asistencia_practica || 80)
-            attPct = Math.min(attPct, Math.round(pracPct * 100))
+            const pracStats = checkRisk(dPrac, catedra.porcentaje_asistencia || catedra.asistencia_practica || 80)
+            attPct = Math.min(attPct, Math.round(pracStats.pct * 100))
+            absPrac = pracStats.abs
+            maxPrac = pracStats.maxAllowed
         }
         
         const maxAbsencesAllowedPerStudent = Math.round((projectedDatesForStudent.length || 1) * (1 - (attendanceThreshold / 100)))
@@ -210,16 +223,16 @@ export default function EstadisticasCatedraPage({ params }) {
         else statusCounts.libre++
 
         // Identificar riesgo crítico
-        if (status.key === 'LIBRE' || isAlreadyLibreByAbsences || isPredictiveRisk) {
+        if (isAlreadyLibreByAbsences || isPredictiveRisk) {
           riskStudents.push({
             id: alumno.id,
             nombre: alumno.nombre_estudiante || '',
             apellido: alumno.apellido_estudiante || '',
-            att: attPct,
-            absences: absences,
-            maxAbs: maxAbsencesAllowedPerStudent,
-            status: isAlreadyLibreByAbsences ? { label: 'LIBRE POR FALTA', key: 'LIBRE' } : (isPredictiveRisk ? { label: 'LÍMITE DE FALTAS', key: 'REGULAR' } : status),
-            isPredictive: isPredictiveRisk
+            absTeo,
+            maxTeo,
+            absPrac,
+            maxPrac,
+            type: isAlreadyLibreByAbsences ? 'libre' : 'alerta'
           })
         }
       })
@@ -282,18 +295,24 @@ export default function EstadisticasCatedraPage({ params }) {
       const kpiData = {
         activos: alumnos.length - statusCounts.libre,
         libres: statusCounts.libre,
-        enRiesgo: riskStudents.filter(r => r.status.key !== 'LIBRE').length,
+        libresPorFalta: riskStudents.filter(r => r.type === 'libre').length,
+        enRiesgo: riskStudents.filter(r => r.type === 'alerta').length,
         p1PassRate: p1Takers > 0 ? Math.round((p1Passed / p1Takers) * 100) : null,
         p2PassRate: p2Takers > 0 ? Math.round((p2Passed / p2Takers) * 100) : null,
       }
+
+      // Check what classes are being imparted
+      const tipoClase = Array.isArray(catedra.tipo_clase) ? catedra.tipo_clase : [catedra.tipo_clase || 'teorico_practica']
+      const hasTeo = tipoClase.includes('teorica') || tipoClase.includes('teorico_practica')
+      const hasPrac = tipoClase.includes('practica') || tipoClase.includes('teorico_practica')
 
       setData({ 
         chartData, 
         pieData, 
         histogramData,
         kpiData,
-        riskStudents,
-        stats: { totalAlumnos: alumnos.length, totalClases: totalClassesCount, attendancePct: attendanceThreshold } 
+        riskStudents: riskStudents.sort((a,b) => a.apellido.localeCompare(b.apellido)),
+        stats: { totalAlumnos: alumnos.length, totalClases: totalClassesCount, attendancePct: attendanceThreshold, hasTeo, hasPrac } 
       })
     } catch (err) {
       console.error('Error fetching analytics:', err)
@@ -391,9 +410,9 @@ export default function EstadisticasCatedraPage({ params }) {
             </div>
             
             <div className="p-5 bg-danger/5 rounded-2xl border border-danger/20">
-              <p className="text-xs font-bold text-danger/80 uppercase">Alumnos Libres</p>
-              <p className="text-4xl font-black text-danger mt-2">{data?.kpiData?.libres || 0}</p>
-              <p className="text-[10px] font-bold text-danger/60 mt-2">Por inasistencia o notas</p>
+              <p className="text-xs font-bold text-danger/80 uppercase">Libres por Faltas</p>
+              <p className="text-4xl font-black text-danger mt-2">{data?.kpiData?.libresPorFalta || 0}</p>
+              <p className="text-[10px] font-bold text-danger/60 mt-2">Superaron el límite de inasistencias</p>
             </div>
 
             <div className="p-5 bg-success/5 rounded-2xl border border-success/20">
@@ -430,7 +449,7 @@ export default function EstadisticasCatedraPage({ params }) {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data.histogramData} margin={{ top: 30, right: 30, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 'bold' }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 'bold' }} axisLine={false} tickLine={false} interval={0} />
                 <YAxis allowDecimals={false} axisLine={false} tickLine={false} />
                 <Tooltip 
                   cursor={{ fill: 'var(--surface-hover)' }}
@@ -457,37 +476,94 @@ export default function EstadisticasCatedraPage({ params }) {
       </div>
 
        {/* Critical Students / Risk */}
-       <div className="mt-8 bg-surface border border-border rounded-3xl p-8 shadow-sm">
-        <h2 className="text-lg font-bold text-foreground mb-6 flex items-center gap-2 text-danger">
-          <AlertCircle className="w-5 h-5" />
-          Alumnos en situación crítica (Alertas Tempranas)
-        </h2>
-        
-        {data?.riskStudents?.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {data.riskStudents.map((s, i) => (
-              <div key={s.id || i} className="p-4 bg-background border border-danger/20 rounded-2xl flex items-center justify-between">
-                <div className="space-y-1">
-                  <div className="text-sm font-bold text-foreground">{s.apellido}, {s.nombre}</div>
-                  <div className="text-[10px] text-muted flex flex-col gap-1">
-                    <span className={s.absences >= s.maxAbs ? 'text-danger font-bold' : ''}>Faltas: {s.absences} de {s.maxAbs} permitidas</span>
-                    <span className={s.status.key === 'LIBRE' ? 'text-danger font-bold' : ''}>Estado: {s.status.label}</span>
-                  </div>
-                    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-danger/10 text-[9px] font-black text-danger uppercase animate-pulse">
-                      <AlertCircle className="w-3 h-3" />
-                      {s.status.key === 'LIBRE' ? 'Hablar con profesor titular' : 'Próxima falta Libre'}
-                    </div>
-                </div>
-                <div className={`w-3 h-3 rounded-full ${s.status.key === 'LIBRE' || s.isPredictive ? 'bg-danger animate-ping' : 'bg-warning'}`} />
-              </div>
-            ))}
+       <div className="mt-12 bg-surface border border-border rounded-3xl p-8 shadow-sm print:shadow-none print:border-none print:p-0">
+        <div className="flex items-center justify-between mb-8 print:mb-4">
+          <h2 className="text-xl font-black text-foreground flex items-center gap-2">
+            <AlertCircle className="w-6 h-6 text-warning" />
+            Reporte de Asistencia Crítica
+          </h2>
+          <button onClick={() => window.print()} className="print:hidden px-4 py-2 bg-surface-hover border border-border rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-border transition-colors">
+            🖨️ Imprimir A4
+          </button>
+        </div>
+
+        {/* Alertas Tempranas */}
+        <div className="mb-10">
+          <h3 className="text-md font-bold text-warning mb-4 flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-warning animate-pulse" />
+            Alertas Tempranas (Al límite de faltas)
+          </h3>
+          <div className="overflow-x-auto rounded-xl border border-border print:border-black/20">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-surface-hover/50 text-xs uppercase text-muted print:bg-transparent print:text-black">
+                <tr>
+                  <th className="px-5 py-3">Alumno</th>
+                  {data?.stats?.hasTeo && <th className="px-5 py-3 text-center">Teoría (Faltas/Permitidas)</th>}
+                  {data?.stats?.hasPrac && <th className="px-5 py-3 text-center">Práctica (Faltas/Permitidas)</th>}
+                  <th className="px-5 py-3 text-center">Acción Sugerida</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border print:divide-black/10">
+                {data?.riskStudents?.filter(r => r.type === 'alerta').map(s => (
+                  <tr key={s.id} className="bg-background print:bg-transparent">
+                    <td className="px-5 py-4 font-bold text-foreground">{s.apellido}, {s.nombre}</td>
+                    {data?.stats?.hasTeo && <td className="px-5 py-4 text-center font-medium text-warning">{s.absTeo} de {s.maxTeo}</td>}
+                    {data?.stats?.hasPrac && <td className="px-5 py-4 text-center font-medium text-warning">{s.absPrac} de {s.maxPrac}</td>}
+                    <td className="px-5 py-4 text-center">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-warning/10 text-[10px] font-black text-warning uppercase border border-warning/20">
+                        Próxima falta libre
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {(!data?.riskStudents || data.riskStudents.filter(r => r.type === 'alerta').length === 0) && (
+                  <tr>
+                    <td colSpan={4} className="px-5 py-8 text-center text-muted font-medium">No hay alumnos en alerta temprana.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-        ) : (
-          <div className="p-12 text-center text-muted border-2 border-dashed border-border rounded-2xl">
-            <CheckCircle className="w-8 h-8 text-success mx-auto mb-3 opacity-20" />
-            <p className="text-sm">No hay alumnos en situación de riesgo crítico por el momento.</p>
+        </div>
+
+        {/* Libres por faltas */}
+        <div>
+          <h3 className="text-md font-bold text-danger mb-4 flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-danger animate-pulse" />
+            Libres por Faltas
+          </h3>
+          <div className="overflow-x-auto rounded-xl border border-danger/30 print:border-black/20">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-danger/5 text-xs uppercase text-danger/80 print:bg-transparent print:text-black">
+                <tr>
+                  <th className="px-5 py-3">Alumno</th>
+                  {data?.stats?.hasTeo && <th className="px-5 py-3 text-center">Teoría (Faltas/Permitidas)</th>}
+                  {data?.stats?.hasPrac && <th className="px-5 py-3 text-center">Práctica (Faltas/Permitidas)</th>}
+                  <th className="px-5 py-3 text-center">Acción Sugerida</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-danger/20 print:divide-black/10">
+                {data?.riskStudents?.filter(r => r.type === 'libre').map(s => (
+                  <tr key={s.id} className="bg-background print:bg-transparent">
+                    <td className="px-5 py-4 font-bold text-foreground">{s.apellido}, {s.nombre}</td>
+                    {data?.stats?.hasTeo && <td className="px-5 py-4 text-center font-black text-danger">{s.absTeo} de {s.maxTeo}</td>}
+                    {data?.stats?.hasPrac && <td className="px-5 py-4 text-center font-black text-danger">{s.absPrac} de {s.maxPrac}</td>}
+                    <td className="px-5 py-4 text-center">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-danger/10 text-[10px] font-black text-danger uppercase border border-danger/20">
+                        Hablar con titular
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {(!data?.riskStudents || data.riskStudents.filter(r => r.type === 'libre').length === 0) && (
+                  <tr>
+                    <td colSpan={4} className="px-5 py-8 text-center text-muted font-medium">No hay alumnos libres por faltas.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Floating Scroll Buttons */}
