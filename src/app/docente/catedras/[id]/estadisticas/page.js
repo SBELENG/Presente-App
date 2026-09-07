@@ -26,7 +26,8 @@ import {
   Cell,
   PieChart,
   Pie,
-  ReferenceLine
+  ReferenceLine,
+  LabelList
 } from 'recharts'
 import { TIPO_NOTA } from '@/lib/constants'
 import { calculateAcademicStatus, generarFechas, getStudentExpectedDates } from '@/lib/academic-logic'
@@ -127,32 +128,31 @@ export default function EstadisticasCatedraPage({ params }) {
       const riskStudents = []
 
       alumnos.forEach(alumno => {
-        // 1. Asistencia real (Usando el Mapa optimizado)
-        let presents = 0
-        let absences = 0
-
-        validClaseIds.forEach(claseId => {
-          if (presenceMap.has(`${alumno.id}-${claseId}`)) {
-              presents++
-          } else {
-              absences++
-          }
-        })
-
-        // NUEVO CALCULO UNIFICADO
+        // 1. Asistencia real (Cálculo exacto por calendario de alumno)
         const projectedDatesForStudent = getStudentExpectedDates(catedra, alumno, clases || [])
-        const validasTomadasCount = projectedDatesForStudent.filter(dDate => {
+        let validasTomadasCount = 0
+        let presents = 0
+
+        projectedDatesForStudent.forEach(dDate => {
            const fs = dDate.toISOString().split('T')[0]
            const dbClase = (clases || []).find(c => c.fecha === fs)
-           return dbClase && dbClase.estado_clase === 'normal'
-        }).length
+           if (dbClase && dbClase.estado_clase === 'normal') {
+               validasTomadasCount++
+               if (presenceMap.has(`${alumno.id}-${dbClase.id}`)) {
+                   presents++
+               }
+           }
+        })
         
-        const attPct = totalClassesCount > 0 ? (presents / totalClassesCount) * 100 : 0
+        const absences = validasTomadasCount - presents
+        const studentTotalExpected = projectedDatesForStudent.length || 1
+        const maxAbsencesAllowedPerStudent = Math.round(studentTotalExpected * (1 - (attendanceThreshold / 100)))
+        const attPct = Math.round((presents / studentTotalExpected) * 100)
         
         // Guard: Solo alertar si ya hubo al menos 3 clases válidas dictadas
         const canAlert = validasTomadasCount >= 3
-        const isPredictiveRisk = canAlert && absences === maxAbsencesAllowed && maxAbsencesAllowed > 0
-        const isAlreadyLibreByAbsences = canAlert && absences > maxAbsencesAllowed
+        const isPredictiveRisk = canAlert && absences === maxAbsencesAllowedPerStudent && maxAbsencesAllowedPerStudent > 0
+        const isAlreadyLibreByAbsences = canAlert && absences > maxAbsencesAllowedPerStudent
 
         // Notas
         const studentGrades = {}
@@ -176,7 +176,7 @@ export default function EstadisticasCatedraPage({ params }) {
             apellido: alumno.apellido_estudiante || '',
             att: attPct,
             absences: absences,
-            maxAbs: maxAbsencesAllowed,
+            maxAbs: maxAbsencesAllowedPerStudent,
             status: isAlreadyLibreByAbsences ? { label: 'LIBRE POR FALTA', key: 'LIBRE' } : (isPredictiveRisk ? { label: 'LÍMITE DE FALTAS', key: 'REGULAR' } : status),
             isPredictive: isPredictiveRisk
           })
@@ -230,7 +230,11 @@ export default function EstadisticasCatedraPage({ params }) {
         }
       })
 
-      const histogramData = Object.values(histogramObj)
+      const histogramData = Object.values(histogramObj).map(bin => ({
+        ...bin,
+        p1Label: p1Takers > 0 && bin.p1 > 0 ? `${Math.round((bin.p1 / p1Takers) * 100)}%` : '',
+        p2Label: p2Takers > 0 && bin.p2 > 0 ? `${Math.round((bin.p2 / p2Takers) * 100)}%` : ''
+      }))
 
       const kpiData = {
         activos: alumnos.length - statusCounts.libre,
@@ -381,7 +385,7 @@ export default function EstadisticasCatedraPage({ params }) {
         <div className="h-[350px] w-full flex items-center justify-center">
           {data?.histogramData && (data.kpiData.p1PassRate !== null || data.kpiData.p2PassRate !== null) ? (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.histogramData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+              <BarChart data={data.histogramData} margin={{ top: 30, right: 30, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 'bold' }} axisLine={false} tickLine={false} />
                 <YAxis allowDecimals={false} axisLine={false} tickLine={false} />
@@ -389,8 +393,12 @@ export default function EstadisticasCatedraPage({ params }) {
                   cursor={{ fill: 'var(--surface-hover)' }}
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                 />
-                <Bar dataKey="p1" name="Parcial 1" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="p2" name="Parcial 2" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="p1" name="Parcial 1" fill="#6366f1" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="p1Label" position="top" style={{ fontSize: '10px', fill: '#6366f1', fontWeight: 'bold' }} />
+                </Bar>
+                <Bar dataKey="p2" name="Parcial 2" fill="#8b5cf6" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="p2Label" position="top" style={{ fontSize: '10px', fill: '#8b5cf6', fontWeight: 'bold' }} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : (
