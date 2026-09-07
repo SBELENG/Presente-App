@@ -132,13 +132,15 @@ export default function EstadisticasCatedraPage({ params }) {
       const riskStudents = []
 
       alumnos.forEach(alumno => {
-        // 1. Asistencia real (Cálculo exacto por calendario de alumno)
         const projectedDatesForStudent = getStudentExpectedDates(catedra, alumno, clases || [])
+        
         let validasTomadasCount = 0
         let presents = 0
-
         projectedDatesForStudent.forEach(dDate => {
-           const fs = dDate.toISOString().split('T')[0]
+           const year = dDate.getFullYear()
+           const month = String(dDate.getMonth() + 1).padStart(2, '0')
+           const day = String(dDate.getDate()).padStart(2, '0')
+           const fs = `${year}-${month}-${day}`
            const dbClase = (clases || []).find(c => c.fecha === fs)
            if (dbClase && (!dbClase.estado_clase || dbClase.estado_clase === 'normal')) {
                validasTomadasCount++
@@ -147,16 +149,51 @@ export default function EstadisticasCatedraPage({ params }) {
                }
            }
         })
-        
         const absences = validasTomadasCount - presents
-        const studentTotalExpected = projectedDatesForStudent.length || 1
-        const maxAbsencesAllowedPerStudent = Math.round(studentTotalExpected * (1 - (attendanceThreshold / 100)))
-        const attPct = Math.round((presents / studentTotalExpected) * 100)
         
-        // Guard: Solo alertar si ya hubo al menos 1 clase dictada
-        const canAlert = validasTomadasCount > 0
-        const isPredictiveRisk = canAlert && absences === maxAbsencesAllowedPerStudent && maxAbsencesAllowedPerStudent > 0
-        const isAlreadyLibreByAbsences = canAlert && absences > maxAbsencesAllowedPerStudent
+        // Evaluar riesgo independientemente para Teoría y Práctica
+        const tipoClase = Array.isArray(catedra.tipo_clase) ? catedra.tipo_clase : [catedra.tipo_clase || 'teorico_practica']
+        const esTeo = tipoClase.includes('teorica') || tipoClase.includes('teorico_practica')
+        const dTeo = esTeo ? generarFechas(catedra.fecha_inicio, catedra.fecha_fin, catedra.dias_clase || []) : []
+        const dPrac = projectedDatesForStudent.filter(d => !dTeo.some(t => t.getTime() === d.getTime()))
+        
+        let isPredictiveRisk = false
+        let isAlreadyLibreByAbsences = false
+        let attPct = 100
+        
+        const checkRisk = (expectedDates, reqPct) => {
+            let validasCount = 0
+            let pCount = 0
+            expectedDates.forEach(dDate => {
+               const year = dDate.getFullYear()
+               const month = String(dDate.getMonth() + 1).padStart(2, '0')
+               const day = String(dDate.getDate()).padStart(2, '0')
+               const fs = `${year}-${month}-${day}`
+               const dbClase = (clases || []).find(c => c.fecha === fs)
+               if (dbClase && (!dbClase.estado_clase || dbClase.estado_clase === 'normal')) {
+                   validasCount++
+                   if (presenceMap.has(`${alumno.id}-${dbClase.id}`)) {
+                       pCount++
+                   }
+               }
+            })
+            const abs = validasCount - pCount
+            const maxAllowed = Math.round((expectedDates.length || 1) * (1 - (reqPct / 100)))
+            if (validasCount > 0 && abs === maxAllowed && maxAllowed > 0) isPredictiveRisk = true
+            if (validasCount > 0 && abs > maxAllowed) isAlreadyLibreByAbsences = true
+            return pCount / (expectedDates.length || 1)
+        }
+
+        if (dTeo.length > 0) {
+            const teoPct = checkRisk(dTeo, catedra.porcentaje_asistencia || catedra.asistencia_teoria || 80)
+            attPct = Math.min(attPct, Math.round(teoPct * 100))
+        }
+        if (dPrac.length > 0) {
+            const pracPct = checkRisk(dPrac, catedra.porcentaje_asistencia || catedra.asistencia_practica || 80)
+            attPct = Math.min(attPct, Math.round(pracPct * 100))
+        }
+        
+        const maxAbsencesAllowedPerStudent = Math.round((projectedDatesForStudent.length || 1) * (1 - (attendanceThreshold / 100)))
 
         // Notas
         const studentGrades = {}
@@ -195,13 +232,13 @@ export default function EstadisticasCatedraPage({ params }) {
       ].filter(d => d.value > 0)
 
       // Histogram Data for Grades
-      const histogramObj = {
-        '0-4': { name: '0-4 (Insuf.)', p1: 0, p2: 0 },
-        '5': { name: '5 (Aprob.)', p1: 0, p2: 0 },
-        '6-7': { name: '6-7 (Bueno)', p1: 0, p2: 0 },
-        '8-9': { name: '8-9 (Muy Bueno)', p1: 0, p2: 0 },
-        '10': { name: '10 (Excelente)', p1: 0, p2: 0 }
-      }
+      const histogramDataRaw = [
+        { key: '0-4', name: '0-4 (Insuf.)', p1: 0, p2: 0 },
+        { key: '5', name: '5 (Aprob.)', p1: 0, p2: 0 },
+        { key: '6-7', name: '6-7 (Bueno)', p1: 0, p2: 0 },
+        { key: '8-9', name: '8-9 (Muy Bueno)', p1: 0, p2: 0 },
+        { key: '10', name: '10 (Excelente)', p1: 0, p2: 0 }
+      ]
       
       let p1Takers = 0, p1Passed = 0
       let p2Takers = 0, p2Passed = 0
@@ -217,11 +254,11 @@ export default function EstadisticasCatedraPage({ params }) {
 
         const assignBin = (val, key) => {
           if (val === null) return
-          if (val < 5) histogramObj['0-4'][key]++
-          else if (val < 6) histogramObj['5'][key]++
-          else if (val < 8) histogramObj['6-7'][key]++
-          else if (val < 10) histogramObj['8-9'][key]++
-          else histogramObj['10'][key]++
+          if (val < 5) histogramDataRaw[0][key]++
+          else if (val < 6) histogramDataRaw[1][key]++
+          else if (val < 8) histogramDataRaw[2][key]++
+          else if (val < 10) histogramDataRaw[3][key]++
+          else histogramDataRaw[4][key]++
         }
 
         if (p1 !== null) {
@@ -236,7 +273,7 @@ export default function EstadisticasCatedraPage({ params }) {
         }
       })
 
-      const histogramData = Object.values(histogramObj).map(bin => ({
+      const histogramData = histogramDataRaw.map(bin => ({
         ...bin,
         p1Label: p1Takers > 0 && bin.p1 > 0 ? `${Math.round((bin.p1 / p1Takers) * 100)}%` : '',
         p2Label: p2Takers > 0 && bin.p2 > 0 ? `${Math.round((bin.p2 / p2Takers) * 100)}%` : ''
