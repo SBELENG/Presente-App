@@ -140,7 +140,7 @@ export default function EstadisticasCatedraPage({ params }) {
         projectedDatesForStudent.forEach(dDate => {
            const fs = dDate.toISOString().split('T')[0]
            const dbClase = (clases || []).find(c => c.fecha === fs)
-           if (dbClase && dbClase.estado_clase === 'normal') {
+           if (dbClase && (!dbClase.estado_clase || dbClase.estado_clase === 'normal')) {
                validasTomadasCount++
                if (presenceMap.has(`${alumno.id}-${dbClase.id}`)) {
                    presents++
@@ -196,10 +196,11 @@ export default function EstadisticasCatedraPage({ params }) {
 
       // Histogram Data for Grades
       const histogramObj = {
-        '0-3': { name: '0-3 (Insuf.)', p1: 0, p2: 0 },
-        '4-5': { name: '4-5 (Aprob.)', p1: 0, p2: 0 },
+        '0-4': { name: '0-4 (Insuf.)', p1: 0, p2: 0 },
+        '5': { name: '5 (Aprob.)', p1: 0, p2: 0 },
         '6-7': { name: '6-7 (Bueno)', p1: 0, p2: 0 },
-        '8-10': { name: '8-10 (Muy Bueno)', p1: 0, p2: 0 }
+        '8-9': { name: '8-9 (Muy Bueno)', p1: 0, p2: 0 },
+        '10': { name: '10 (Excelente)', p1: 0, p2: 0 }
       }
       
       let p1Takers = 0, p1Passed = 0
@@ -216,21 +217,22 @@ export default function EstadisticasCatedraPage({ params }) {
 
         const assignBin = (val, key) => {
           if (val === null) return
-          if (val < 4) histogramObj['0-3'][key]++
-          else if (val < 6) histogramObj['4-5'][key]++
+          if (val < 5) histogramObj['0-4'][key]++
+          else if (val < 6) histogramObj['5'][key]++
           else if (val < 8) histogramObj['6-7'][key]++
-          else histogramObj['8-10'][key]++
+          else if (val < 10) histogramObj['8-9'][key]++
+          else histogramObj['10'][key]++
         }
 
         if (p1 !== null) {
           assignBin(p1, 'p1')
           p1Takers++
-          if (p1 >= 4) p1Passed++ // Nota mínima de aprobación
+          if (p1 >= 5) p1Passed++ // Nota mínima de aprobación
         }
         if (p2 !== null) {
           assignBin(p2, 'p2')
           p2Takers++
-          if (p2 >= 4) p2Passed++
+          if (p2 >= 5) p2Passed++
         }
       })
 
