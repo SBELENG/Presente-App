@@ -670,7 +670,6 @@ export default function AsistenciaDetallePage({ params }) {
       alert(`Error al registrar asistencia: ${asistErr.message}`)
     } else {
       await fetchData()
-      setShowManualAttendance(false)
       setManualAttendance({ ...manualAttendance, alumnoId: '' })
     }
     setSavingManual(false)
@@ -1130,7 +1129,7 @@ export default function AsistenciaDetallePage({ params }) {
       {/* Manual Attendance Entry Modal */}
       {showManualAttendance && (
         <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-start justify-center p-4 pt-16 sm:pt-24"
           onClick={(e) => { if (e.target === e.currentTarget) setShowManualAttendance(false) }}
         >
           <div className="bg-surface border border-border w-full max-w-sm rounded-2xl shadow-2xl animate-scale-in">
