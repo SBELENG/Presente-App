@@ -137,86 +137,45 @@ export default function EstadisticasCatedraPage({ params }) {
       alumnosValidos.forEach(alumno => {
         const projectedDatesForStudent = getStudentExpectedDates(catedra, alumno, clases || [])
         
-        let validasTomadasCount = 0
+        const reqPct = catedra.porcentaje_asistencia || 70
+        
+        // Corte a hoy: solo clases dictadas hasta hoy se cuentan
+        const hoy = new Date()
+        const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`
+        
+        let validasCount = 0
         let presents = 0
         projectedDatesForStudent.forEach(dDate => {
            const year = dDate.getFullYear()
            const month = String(dDate.getMonth() + 1).padStart(2, '0')
            const day = String(dDate.getDate()).padStart(2, '0')
            const fs = `${year}-${month}-${day}`
+           
+           if (fs > hoyStr) return // Ignorar clases futuras
+           
            const dbClase = (clases || []).find(c => c.fecha === fs)
            if (dbClase && (!dbClase.estado_clase || dbClase.estado_clase === 'normal')) {
-               validasTomadasCount++
+               validasCount++
                if (presenceMap.has(`${alumno.id}-${dbClase.id}`)) {
                    presents++
                }
            }
         })
-        const absences = validasTomadasCount - presents
         
-        // Evaluar riesgo independientemente para Teoría y Práctica
-        const tipoClase = Array.isArray(catedra.tipo_clase) ? catedra.tipo_clase : [catedra.tipo_clase || 'teorico_practica']
-        const esTeo = tipoClase.includes('teorica') || tipoClase.includes('teorico_practica')
-        const dTeo = esTeo ? generarFechas(catedra.fecha_inicio, catedra.fecha_fin, catedra.dias_clase || []) : []
-        const dPrac = projectedDatesForStudent.filter(d => !dTeo.some(t => t.getTime() === d.getTime()))
+        const absences = validasCount - presents
+        const maxAllowed = Math.round(validasCount * (1 - (reqPct / 100)))
+        const attPct = validasCount > 0 ? Math.round((presents / validasCount) * 100) : 100
         
-        let isPredictiveRisk = false
-        let isAlreadyLibreByAbsences = false
-        let attPct = 100
+        const isPredictiveRisk = validasCount > 0 && absences === maxAllowed && maxAllowed > 0
+        const isAlreadyLibreByAbsences = validasCount > 0 && absences > maxAllowed
         
-        let absTeo = 0, maxTeo = 0
-        let absPrac = 0, maxPrac = 0
-
-        const checkRisk = (expectedDates, reqPct) => {
-            let validasCount = 0
-            let pCount = 0
-            
-            // Corte a hoy para no tomar como ausentes clases que aún no ocurrieron
-            const hoyStr = new Date().toLocaleDateString('en-CA')
-
-            expectedDates.forEach(dDate => {
-               const year = dDate.getFullYear()
-               const month = String(dDate.getMonth() + 1).padStart(2, '0')
-               const day = String(dDate.getDate()).padStart(2, '0')
-               const fs = `${year}-${month}-${day}`
-               
-               if (fs > hoyStr) return // Ignorar clases futuras
-               
-               const dbClase = (clases || []).find(c => c.fecha === fs)
-               if (dbClase && (!dbClase.estado_clase || dbClase.estado_clase === 'normal')) {
-                   validasCount++
-                   if (presenceMap.has(`${alumno.id}-${dbClase.id}`)) {
-                       pCount++
-                   }
-               }
-            })
-            const abs = validasCount - pCount
-            const maxAllowed = Math.round(validasCount * (1 - (reqPct / 100)))
-            
-            if (validasCount > 0 && abs === maxAllowed && maxAllowed > 0) isPredictiveRisk = true
-            if (validasCount > 0 && abs > maxAllowed) isAlreadyLibreByAbsences = true
-            
-            return {
-                pct: validasCount > 0 ? (pCount / validasCount) : 1,
-                abs,
-                maxAllowed
-            }
-        }
-
-        if (dTeo.length > 0) {
-            const teoStats = checkRisk(dTeo, catedra.porcentaje_asistencia || catedra.asistencia_teoria || 70)
-            attPct = Math.min(attPct, Math.round(teoStats.pct * 100))
-            absTeo = teoStats.abs
-            maxTeo = teoStats.maxAllowed
-        }
-        if (dPrac.length > 0) {
-            const pracStats = checkRisk(dPrac, catedra.porcentaje_asistencia || catedra.asistencia_practica || 70)
-            attPct = Math.min(attPct, Math.round(pracStats.pct * 100))
-            absPrac = pracStats.abs
-            maxPrac = pracStats.maxAllowed
-        }
+        // Para la tabla: mostrar faltas/permitidas de teoría (son todas las clases en este caso)
+        const absTeo = absences
+        const maxTeo = maxAllowed
+        const absPrac = 0
+        const maxPrac = 0
         
-        const maxAbsencesAllowedPerStudent = Math.round((projectedDatesForStudent.length || 1) * (1 - (attendanceThreshold / 100)))
+        const maxAbsencesAllowedPerStudent = maxAllowed
 
         // Notas
         const studentGrades = {}
