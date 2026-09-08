@@ -131,7 +131,10 @@ export default function EstadisticasCatedraPage({ params }) {
       const gradeChartData = []
       const riskStudents = []
 
-      alumnos.forEach(alumno => {
+      // Filtrar alumnos fantasma (sin nombre)
+      const alumnosValidos = alumnos.filter(a => a.nombre_estudiante || a.apellido_estudiante)
+
+      alumnosValidos.forEach(alumno => {
         const projectedDatesForStudent = getStudentExpectedDates(catedra, alumno, clases || [])
         
         let validasTomadasCount = 0
@@ -167,11 +170,18 @@ export default function EstadisticasCatedraPage({ params }) {
         const checkRisk = (expectedDates, reqPct) => {
             let validasCount = 0
             let pCount = 0
+            
+            // Corte a hoy para no tomar como ausentes clases que aún no ocurrieron
+            const hoyStr = new Date().toLocaleDateString('en-CA')
+
             expectedDates.forEach(dDate => {
                const year = dDate.getFullYear()
                const month = String(dDate.getMonth() + 1).padStart(2, '0')
                const day = String(dDate.getDate()).padStart(2, '0')
                const fs = `${year}-${month}-${day}`
+               
+               if (fs > hoyStr) return // Ignorar clases futuras
+               
                const dbClase = (clases || []).find(c => c.fecha === fs)
                if (dbClase && (!dbClase.estado_clase || dbClase.estado_clase === 'normal')) {
                    validasCount++
@@ -256,7 +266,7 @@ export default function EstadisticasCatedraPage({ params }) {
       let p1Takers = 0, p1Passed = 0
       let p2Takers = 0, p2Passed = 0
 
-      alumnos.forEach(alumno => {
+      alumnosValidos.forEach(alumno => {
         const studentGrades = {}
         notas.filter(n => n.inscripcion_id === alumno.id).forEach(n => {
           studentGrades[n.tipo] = parseFloat(n.valor) || null
@@ -293,7 +303,7 @@ export default function EstadisticasCatedraPage({ params }) {
       }))
 
       const kpiData = {
-        activos: alumnos.length - statusCounts.libre,
+        activos: alumnosValidos.length - statusCounts.libre,
         libres: statusCounts.libre,
         libresPorFalta: riskStudents.filter(r => r.type === 'libre').length,
         enRiesgo: riskStudents.filter(r => r.type === 'alerta').length,
@@ -312,7 +322,7 @@ export default function EstadisticasCatedraPage({ params }) {
         histogramData,
         kpiData,
         riskStudents: riskStudents.sort((a,b) => a.apellido.localeCompare(b.apellido)),
-        stats: { totalAlumnos: alumnos.length, totalClases: totalClassesCount, attendancePct: attendanceThreshold, hasTeo, hasPrac } 
+        stats: { totalAlumnos: alumnosValidos.length, totalClases: totalClassesCount, attendancePct: attendanceThreshold, hasTeo, hasPrac } 
       })
     } catch (err) {
       console.error('Error fetching analytics:', err)
