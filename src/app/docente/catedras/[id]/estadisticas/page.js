@@ -144,26 +144,30 @@ export default function EstadisticasCatedraPage({ params }) {
         const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`
         
         let validasCount = 0
+        let totalProjectedCount = 0
         let presents = 0
+        
         projectedDatesForStudent.forEach(dDate => {
            const year = dDate.getFullYear()
            const month = String(dDate.getMonth() + 1).padStart(2, '0')
            const day = String(dDate.getDate()).padStart(2, '0')
            const fs = `${year}-${month}-${day}`
            
-           if (fs > hoyStr) return // Ignorar clases futuras
-           
            const dbClase = (clases || []).find(c => c.fecha === fs)
            if (dbClase && (!dbClase.estado_clase || dbClase.estado_clase === 'normal')) {
-               validasCount++
-               if (presenceMap.has(`${alumno.id}-${dbClase.id}`)) {
-                   presents++
+               totalProjectedCount++ // Todas las clases normales del semestre
+               
+               if (fs <= hoyStr) {
+                   validasCount++ // Solo las clases dictadas hasta hoy
+                   if (presenceMap.has(`${alumno.id}-${dbClase.id}`)) {
+                       presents++
+                   }
                }
            }
         })
         
         const absences = validasCount - presents
-        const maxAllowed = Math.round(validasCount * (1 - (reqPct / 100)))
+        const maxAllowed = Math.round(totalProjectedCount * (1 - (reqPct / 100)))
         const attPct = validasCount > 0 ? Math.round((presents / validasCount) * 100) : 100
         
         const isPredictiveRisk = validasCount > 0 && absences === maxAllowed && maxAllowed > 0
