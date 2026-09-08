@@ -204,13 +204,13 @@ export default function EstadisticasCatedraPage({ params }) {
         }
 
         if (dTeo.length > 0) {
-            const teoStats = checkRisk(dTeo, catedra.porcentaje_asistencia || catedra.asistencia_teoria || 80)
+            const teoStats = checkRisk(dTeo, catedra.porcentaje_asistencia || catedra.asistencia_teoria || 70)
             attPct = Math.min(attPct, Math.round(teoStats.pct * 100))
             absTeo = teoStats.abs
             maxTeo = teoStats.maxAllowed
         }
         if (dPrac.length > 0) {
-            const pracStats = checkRisk(dPrac, catedra.porcentaje_asistencia || catedra.asistencia_practica || 80)
+            const pracStats = checkRisk(dPrac, catedra.porcentaje_asistencia || catedra.asistencia_practica || 70)
             attPct = Math.min(attPct, Math.round(pracStats.pct * 100))
             absPrac = pracStats.abs
             maxPrac = pracStats.maxAllowed
